@@ -1,19 +1,34 @@
-param(
-    [ValidateSet("win-x64", "win-arm64")][string]$Runtime = "win-x64",
-    [switch]$SelfContained
-)
-$ErrorActionPreference = "Stop"
+param([switch]$SkipTests)
+$ErrorActionPreference = 'Stop'
 Push-Location $PSScriptRoot
 try {
-    dotnet test tests/ArchiveBox.Core.Tests/ArchiveBox.Core.Tests.csproj -c Release
-    if ($LASTEXITCODE -ne 0) { throw "Tests failed." }
-    $flavor = if ($SelfContained) { "standalone" } else { "lite" }
-    $destination = Join-Path $PSScriptRoot "artifacts/ArchiveBox-$Runtime-$flavor"
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+    if (-not (Test-Path $vswhere)) { throw 'Install Visual Studio 2022 with the .NET desktop development workload.' }
+    $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\Current\Bin\MSBuild.exe' | Select-Object -First 1
+    if (-not $msbuild) { throw 'MSBuild was not found.' }
+    & $msbuild ArchiveBox.sln /restore /m /verbosity:minimal /p:Configuration=Release /p:DebugType=None /p:DebugSymbols=false
+    if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+    if (-not $SkipTests) {
+        $vstest = & $vswhere -latest -products * -find '**\vstest.console.exe' | Select-Object -First 1
+        if (-not $vstest) { throw 'Visual Studio Test Platform was not found.' }
+        $tests = Join-Path $PSScriptRoot 'tests/ArchiveBox.Core.Tests/bin/Release/net48'
+        & $vstest (Join-Path $tests 'ArchiveBox.Core.Tests.dll') /Platform:x64 "/TestAdapterPath:$tests" '/Logger:console;verbosity=normal'
+        if ($LASTEXITCODE -ne 0) { throw '.NET Framework 4.8 tests failed.' }
+    }
+    $project = [xml](Get-Content src/ArchiveBox.App/ArchiveBox.App.csproj -Raw)
+    $version = $project.Project.PropertyGroup.Version
+    $destination = Join-Path $PSScriptRoot "artifacts/ArchiveBox-v$version-win-x64"
     if (Test-Path $destination) { Remove-Item -Recurse -Force $destination }
-    $standalone = if ($SelfContained) { "true" } else { "false" }
-    dotnet publish src/ArchiveBox.App/ArchiveBox.App.csproj -c Release -r $Runtime --self-contained $standalone -p:PublishReadyToRun=false -p:DebugType=None -o $destination
-    if ($LASTEXITCODE -ne 0) { throw "Publish failed." }
-    Copy-Item README.md (Join-Path $destination "README.md")
+    $null = New-Item -ItemType Directory -Path $destination -Force
+    Copy-Item src/ArchiveBox.App/bin/Release/net48/* $destination -Recurse
+    Copy-Item README.md $destination
+    Copy-Item scripts/Diagnose-ArchiveBox.cmd $destination
+    # Windows PowerShell 5.1 needs a BOM to reliably read UTF-8 scripts.
+    [IO.File]::WriteAllText((Join-Path $destination 'Diagnose-ArchiveBox.ps1'),
+        [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'scripts/Diagnose-ArchiveBox.ps1')), [Text.UTF8Encoding]::new($true))
+    if (Test-Path (Join-Path $destination 'ArchiveBox.runtimeconfig.json')) { throw 'Unexpected modern .NET runtime configuration in Framework package.' }
+    if (-not (Select-String -Path (Join-Path $destination 'ArchiveBox.exe.config') -SimpleMatch '.NETFramework,Version=v4.8' -Quiet)) { throw 'Framework 4.8 startup configuration is missing.' }
+    if (-not (Test-Path (Join-Path $destination 'e_sqlite3.dll'))) { throw 'Windows x64 SQLite native library is missing.' }
     $archive = "$destination.zip"
     if (Test-Path $archive) { Remove-Item $archive }
     Compress-Archive -Path $destination -DestinationPath $archive -CompressionLevel Optimal

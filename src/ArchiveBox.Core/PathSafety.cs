@@ -2,17 +2,41 @@ namespace ArchiveBox.Core;
 
 public static class PathSafety
 {
-    private static StringComparison Comparison => OperatingSystem.IsWindows()
+    public static bool IsWindows => Environment.OSVersion.Platform == PlatformID.Win32NT;
+    private static StringComparison Comparison => IsWindows
         ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
-    public static string Normalize(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+    public static string Normalize(string path)
+    {
+        var full = Path.GetFullPath(path);
+        var root = Path.GetPathRoot(full)!;
+        while (full.Length > root.Length && EndsInSeparator(full)) full = full.Substring(0, full.Length - 1);
+        return full;
+    }
+
+    private static bool EndsInSeparator(string path) => path.Length > 0 &&
+        (path[path.Length - 1] == Path.DirectorySeparatorChar || path[path.Length - 1] == Path.AltDirectorySeparatorChar);
+
+    public static string RelativePath(string root, string path)
+    {
+        root = Normalize(root);
+        path = Normalize(path);
+        if (!string.Equals(Path.GetPathRoot(root), Path.GetPathRoot(path), Comparison)) return path;
+        var separators = new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar };
+        var from = root.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+        var to = path.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+        var common = 0;
+        while (common < from.Length && common < to.Length && string.Equals(from[common], to[common], Comparison)) common++;
+        var parts = Enumerable.Repeat("..", from.Length - common).Concat(to.Skip(common)).ToArray();
+        return parts.Length == 0 ? "." : string.Join(Path.DirectorySeparatorChar.ToString(), parts);
+    }
 
     public static string Resolve(string root, string relative)
     {
         root = Normalize(root);
         if (Path.IsPathRooted(relative)) throw new IOException("归档路径必须是相对路径。");
         var full = Normalize(Path.Combine(root, relative));
-        var prefix = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+        var prefix = EndsInSeparator(root) ? root : root + Path.DirectorySeparatorChar;
         if (!full.Equals(root, Comparison) && !full.StartsWith(prefix, Comparison))
             throw new IOException("目标路径超出了归档根目录。");
         return full;
@@ -40,9 +64,9 @@ public static class PathSafety
             throw new IOException("请输入相对文件夹名称，例如 工作/项目 A。");
         var parts = relativeName.Replace('\\', '/').Split('/');
         if (parts.Any(p => string.IsNullOrWhiteSpace(p) || p is "." or ".." ||
-                           p.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || p.EndsWith('.') || p.EndsWith(' ')))
+                           p.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || p.EndsWith(".", StringComparison.Ordinal) || p.EndsWith(" ", StringComparison.Ordinal)))
             throw new IOException("文件夹名称无效，不能包含空层级、上级路径或非法字符。");
-        var target = Resolve(root, Path.GetRelativePath(root, Path.Combine(parent, Path.Combine(parts))));
+        var target = Resolve(root, RelativePath(root, Path.Combine(parent, Path.Combine(parts))));
         RejectLinks(target);
         Directory.CreateDirectory(target);
         return target;

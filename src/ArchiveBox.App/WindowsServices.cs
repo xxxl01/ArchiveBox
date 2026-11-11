@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Interop;
 using ArchiveBox.Core;
 using Microsoft.VisualBasic.FileIO;
-using Microsoft.Win32;
 
 namespace ArchiveBox.App;
 
@@ -19,9 +19,14 @@ public static class WindowsServices
 {
     public static string? PickFolder(string title, string? initial)
     {
-        var dialog = new OpenFolderDialog { Title = title, Multiselect = false };
-        if (Directory.Exists(initial)) dialog.InitialDirectory = initial;
-        return dialog.ShowDialog(Application.Current.MainWindow) == true ? dialog.FolderName : null;
+        using var dialog = new System.Windows.Forms.FolderBrowserDialog
+        {
+            Description = title,
+            ShowNewFolderButton = true,
+            SelectedPath = Directory.Exists(initial) ? initial! : ""
+        };
+        var owner = new FolderDialogOwner(new WindowInteropHelper(Application.Current.MainWindow).Handle);
+        return dialog.ShowDialog(owner) == System.Windows.Forms.DialogResult.OK ? dialog.SelectedPath : null;
     }
 
     public static bool Confirm(string message) => MessageBox.Show(Application.Current.MainWindow,
@@ -39,5 +44,10 @@ public static class WindowsServices
     {
         if (!File.Exists(path) && !Directory.Exists(path)) throw new IOException("文件或目录不存在，请检查磁盘连接。");
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+    }
+
+    private sealed class FolderDialogOwner(IntPtr handle) : System.Windows.Forms.IWin32Window
+    {
+        public IntPtr Handle => handle;
     }
 }

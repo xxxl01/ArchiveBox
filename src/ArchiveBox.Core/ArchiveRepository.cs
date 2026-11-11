@@ -112,8 +112,8 @@ public sealed class ArchiveRepository
         using var reader = command.ExecuteReader();
         var items = new List<ArchiveItem>();
         while (reader.Read()) items.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2),
-            reader.GetString(3), Enum.Parse<ArchiveMode>(reader.GetString(4)), Parse(reader.GetString(5)),
-            reader.IsDBNull(6) ? null : Parse(reader.GetString(6)), Enum.Parse<ItemState>(reader.GetString(7)),
+            reader.GetString(3), (ArchiveMode)Enum.Parse(typeof(ArchiveMode), reader.GetString(4)), Parse(reader.GetString(5)),
+            reader.IsDBNull(6) ? null : Parse(reader.GetString(6)), (ItemState)Enum.Parse(typeof(ItemState), reader.GetString(7)),
             reader.GetInt64(8), reader.IsDBNull(9) ? null : reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetString(10)));
         return items;
     }

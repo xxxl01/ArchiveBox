@@ -42,7 +42,7 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
-        if (!ViewModel.IsBusy) return;
+        if (App.IsFatalShutdown || !ViewModel.IsBusy) return;
         e.Cancel = true;
         MessageBox.Show(this, "文件操作正在进行，请先取消操作并等待结束，再关闭窗口。", "归档盒");
     }

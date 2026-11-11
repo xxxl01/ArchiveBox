@@ -8,8 +8,8 @@ namespace ArchiveBox.App;
 public partial class FileRow : ObservableObject
 {
     [ObservableProperty] private bool _isSelected;
-    public required string Path { get; init; }
-    public required string Name { get; init; }
+    public string Path { get; init; } = "";
+    public string Name { get; init; } = "";
     public bool IsDirectory { get; init; }
     public long Size { get; init; }
     public DateTime ModifiedAt { get; init; }
@@ -65,7 +65,7 @@ public partial class FolderNode : ObservableObject
     public FolderNode(string path, bool placeholder = false)
     {
         Path = path;
-        Name = placeholder ? "加载中…" : System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(path));
+        Name = placeholder ? "加载中…" : System.IO.Path.GetFileName(PathSafety.Normalize(path));
         if (string.IsNullOrEmpty(Name)) Name = path;
         if (!placeholder) Children.Add(new("", true));
     }
@@ -81,7 +81,7 @@ public partial class FolderNode : ObservableObject
                 PathSafety.RejectLinks(Path);
                 return Directory.EnumerateDirectories(Path).Where(p =>
                     (File.GetAttributes(p) & FileAttributes.ReparsePoint) == 0)
-                    .Order(StringComparer.CurrentCultureIgnoreCase).ToArray();
+                    .OrderBy(p => p, StringComparer.CurrentCultureIgnoreCase).ToArray();
             });
             Children.Clear();
             foreach (var folder in folders) Children.Add(new(folder));

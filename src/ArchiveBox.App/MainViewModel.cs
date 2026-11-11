@@ -87,8 +87,8 @@ public partial class MainViewModel : ObservableObject
         _service = new(_repository);
         FilesView = CollectionViewSource.GetDefaultView(Rows);
         FilesView.Filter = value => value is FileRow row && (string.IsNullOrWhiteSpace(SearchText) ||
-            row.Name.Contains(SearchText, StringComparison.CurrentCultureIgnoreCase) ||
-            row.Path.Contains(SearchText, StringComparison.CurrentCultureIgnoreCase));
+            row.Name.IndexOf(SearchText, StringComparison.CurrentCultureIgnoreCase) >= 0 ||
+            row.Path.IndexOf(SearchText, StringComparison.CurrentCultureIgnoreCase) >= 0);
         SelectedMode = _repository.GetSetting("mode") == "Move" ? 1 : 0;
         SelectedConflict = _repository.GetSetting("conflict") == "Skip" ? 1 : 0;
 
@@ -197,11 +197,11 @@ public partial class MainViewModel : ObservableObject
 
     public void ReportError(Exception error)
     {
-        App.WriteLog(error);
+        var log = App.WriteLog(error);
         Status = error.Message;
         ResultDetails = error.Message;
         if (App.IsSmokeTest) App.SmokeFailed = true;
-        else MessageBox.Show(Application.Current.MainWindow, error.Message, "归档盒", MessageBoxButton.OK, MessageBoxImage.Warning);
+        else MessageBox.Show(Application.Current.MainWindow, $"{error.Message}\n\n日志：{log}", "归档盒", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private void Safe(Action action) { try { action(); } catch (Exception error) { ReportError(error); } }
@@ -316,7 +316,7 @@ public partial class MainViewModel : ObservableObject
         NewFolderName = "";
         if (_targetNode is not null) { await _targetNode.LoadAsync(force: true); _targetNode.IsExpanded = true; }
         var node = TargetTree.First();
-        foreach (var part in Path.GetRelativePath(ArchiveRoot, target).Split(Path.DirectorySeparatorChar))
+        foreach (var part in PathSafety.RelativePath(ArchiveRoot, target).Split(Path.DirectorySeparatorChar))
         {
             await node.LoadAsync();
             node.IsExpanded = true;

@@ -1,16 +1,20 @@
 # 归档盒 · ArchiveBox
 
-Windows 本地文件归档工具，基于 **WPF + .NET 10 + SQLite**。无需账号或服务器，使用普通磁盘目录存储文件。
+Windows 本地文件归档工具，基于 **WPF + .NET Framework 4.8 + SQLite**。无需账号或服务器，使用普通磁盘目录存储文件。
 
 ## 运行
 
-- 支持 Windows 10 / 11，当前打包版本为 x64。
-- **standalone 独立版**：解压完整目录，双击 `ArchiveBox.exe`，不需要额外安装 .NET。
-- **lite 轻量版**：解压完整目录；先安装微软 **.NET 10 Desktop Runtime x64**，再运行 `ArchiveBox.exe`。
-- 请勿只复制 EXE；SQLite 原生库和其他 DLL 需要一起保留。
-- 普通用户权限即可运行，同一用户会话同时运行一个实例。
+**.NET Framework 4.8 是主发行版本，不是可选的兼容版本。应用运行不需要 .NET 10。**
 
-微软运行时下载：https://dotnet.microsoft.com/download/dotnet/10.0 （选择 Windows 的 **.NET Desktop Runtime**，不是仅 .NET Runtime，也不是 ASP.NET Core Runtime）。
+- 当前主包为 `ArchiveBox-v0.2.0-win-x64.zip`，面向 64 位 Windows 11，重点适配 Windows 11 21H2（build 22000）。
+- Windows 11 通常已包含 .NET Framework 4.8 或兼容的原位更新，无需额外安装现代 .NET Desktop Runtime。
+- 解压完整目录后运行 `ArchiveBox.exe`。EXE、`ArchiveBox.exe.config`、DLL 和 SQLite 原生库必须一起保留；请勿与旧版 DLL 混用。
+- 普通用户权限即可运行，同一用户会话同时运行一个实例。
+- 本项目没有 build 22000 实机；编译目标和旧 API 适配不能替代该具体系统版本的运行验证。
+
+启动失败时，运行程序目录里的 `Diagnose-ArchiveBox.cmd`。它会记录 Windows build、Framework Release、进程输出和退出代码。应用也会记录托管异常，UI 致命异常会显示错误和日志路径后退出。日志在 `%LocalAppData%\ArchiveBox`；不可写时回退到 `%TEMP%\ArchiveBox`。
+
+从旧版升级时，关闭旧程序，将新版解压到新的程序目录即可。数据库和归档文件位置不变，不需要清空数据。旧版 v0.1.0 的 .NET 10 运行包已不再作为主版本。
 
 ## 使用
 
@@ -50,34 +54,32 @@ Windows 本地文件归档工具，基于 **WPF + .NET 10 + SQLite**。无需账
 
 ## 开发
 
-安装 .NET 10 SDK，用 Visual Studio 2026 或支持 .NET 10 的 IDE 打开 `ArchiveBox.sln`。
+应用目标为 **.NET Framework 4.8**，核心库目标为 .NET Standard 2.0（由 Framework 4.8 应用加载），测试项目也目标为 Framework 4.8。编译器可以使用现代 C#，不意味着用户运行时需要现代 .NET。
+
+在 Windows 安装 Visual Studio 2022 17.14 或更新版本（“.NET 桌面开发”工作负载，含 MSBuild、VSTest、Framework 4.8 开发组件，以及构建所需的 SDK）。打开 `ArchiveBox.sln`，或在 PowerShell 中运行：
 
 ```powershell
-dotnet build ArchiveBox.sln -c Release
-dotnet test tests/ArchiveBox.Core.Tests/ArchiveBox.Core.Tests.csproj -c Release
-dotnet run --project src/ArchiveBox.App
-
-# 轻量包（依赖 Desktop Runtime）
+# 编译、运行 Framework 测试、生成唯一的主发行包
 ./build.ps1
 
-# 独立包（自带 Desktop Runtime）
-./build.ps1 -SelfContained
-
-# Windows ARM64 独立包
-./build.ps1 -Runtime win-arm64 -SelfContained
+# 对实际发布目录进行窗口初始化、文件列表刷新及视图切换检查
+./scripts/smoke-test.ps1
 ```
 
-Windows App 可以在 Linux 上使用 `EnableWindowsTargeting` 交叉编译；WPF 窗口及 Windows 回收站集成仍需在 Windows 实机验证。
+输出：`artifacts/ArchiveBox-v0.2.0-win-x64.zip`。程序运行只依赖 Framework 4.8；编译工具不随程序发布。
 
 ```text
-src/ArchiveBox.App/         WPF 界面、MVVM、Windows 集成
-src/ArchiveBox.Core/        文件操作、数据库、路径检查
-tests/ArchiveBox.Core.Tests/ 文件操作与恢复测试
+src/ArchiveBox.App/          Framework 4.8 WPF 界面、MVVM、Windows 集成
+src/ArchiveBox.Core/         .NET Standard 2.0 文件操作、数据库、路径检查
+tests/ArchiveBox.Core.Tests/ Framework 4.8 测试
+scripts/                    启动检查及用户诊断入口
 ```
 
-核心测试使用临时目录，回收站测试使用替身，不操作真实回收站。GitHub Actions 提供 Windows 构建、核心测试和窗口启动检查；只有工作流实际运行后才代表该检查通过。窗口检查使用隔离的数据目录，等待界面初始化完成后退出，不会修改正常使用时的数据库。
+核心测试使用临时目录，回收站测试使用替身，不操作真实回收站。目录联接测试在临时目录中创建并移除 junction。启动检查使用隔离的数据目录，不修改正常使用的数据库。
 
-推送 `v主版本.次版本.修订版本` 标签（例如 `v0.1.0`）会触发 Windows 发布工作流，在核心测试和窗口初始化检查通过后，将独立版、轻量版和 SHA-256 校验文件发布到 GitHub Releases。
+GitHub Actions 在 Windows Server 2022、2025 上编译、运行 Framework 测试并检查窗口初始化；没有 Windows 11 21H2 runner，不宣称已经在 build 22000 上实测。只有相应工作流通过后才代表该检查通过。
+
+推送 `v主版本.次版本.修订版本` 标签会触发 Windows 发布流程，只发布 Framework 4.8 主包和 SHA-256 校验文件。Release 标题、说明和文件名使用英文，应用界面保持中文。
 
 ## 第一版边界
 

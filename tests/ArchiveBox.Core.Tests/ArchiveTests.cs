@@ -230,12 +230,35 @@ public sealed class ArchiveTests : IDisposable
     }
 
     [Fact]
-    public async Task SymlinkDestination_IsRejected()
+    public void ReparsePointGuard_RejectsDirectoryJunction()
     {
-        if (OperatingSystem.IsWindows()) return; // Creating symlinks may require developer mode on Windows.
-        var link = Path.Combine(Root, "link");
-        Directory.CreateSymbolicLink(link, Source);
-        await Assert.ThrowsAsync<IOException>(() => Transfer(MakeFile(), target: link));
+        var link = Path.Combine(Root, "linked-folder");
+        using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            "cmd.exe", $"/d /c mklink /J \"{link}\" \"{Source}\"")
+        { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true })!;
+        Assert.True(process.WaitForExit(5000));
+        Assert.True(process.ExitCode == 0, process.StandardError.ReadToEnd());
+        try { Assert.Throws<IOException>(() => PathSafety.RejectLinks(link)); }
+        finally { if (Directory.Exists(link)) Directory.Delete(link); }
+    }
+
+    [Fact]
+    public void RelativePaths_PreserveUnicodeAndSpecialCharacters()
+    {
+        var path = Path.Combine(Root, "项目 #1", "文件 %20.txt");
+        var relative = PathSafety.RelativePath(Root, path);
+        Assert.Equal(Path.Combine("项目 #1", "文件 %20.txt"), relative);
+        Assert.Equal(PathSafety.Normalize(path), PathSafety.Resolve(Root, relative));
+        Assert.Equal(".", PathSafety.RelativePath(Root, Root));
+        Assert.Equal(Path.GetPathRoot(Root), PathSafety.Normalize(Path.GetPathRoot(Root)!));
+    }
+
+    [Fact]
+    public void RootBoundary_RejectsSiblingWithSamePrefix()
+    {
+        var sibling = Root + "-outside";
+        var relative = PathSafety.RelativePath(Root, Path.Combine(sibling, "report.txt"));
+        Assert.Throws<IOException>(() => PathSafety.Resolve(Root, relative));
     }
 
     [Fact]

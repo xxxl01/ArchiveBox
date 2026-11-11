@@ -1,4 +1,4 @@
-name: Publish Windows release
+name: Publish .NET Framework 4.8 release
 on:
   push:
     tags: ['v*']
@@ -9,23 +9,16 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-      - name: Build and test both packages
+      - name: Build and test .NET Framework 4.8 package
         shell: pwsh
-        run: |
-          ./build.ps1 -SelfContained
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ./build.ps1
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Check desktop startup
+        run: ./build.ps1
+      - name: Check packaged desktop startup
         shell: pwsh
         run: ./scripts/smoke-test.ps1
-      - name: Publish packages
+      - name: Publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -34,30 +27,18 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Release tag must be vMAJOR.MINOR.PATCH.' }
-          $packages = @(Get-ChildItem artifacts/ArchiveBox-win-x64-*.zip | Sort-Object Name)
-          if ($packages.Count -ne 2) { throw 'Expected standalone and lite packages.' }
-          $checksums = $packages | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name }
-          $checksums | Set-Content artifacts/SHA256SUMS.txt -Encoding utf8NoBOM
-          $notes = @'
-          归档盒 Windows x64 版本，支持目录浏览、多级归档、批量复制/移动、预计删除时间和手动回收站处理。
-
-          - **standalone.zip**：独立版，自带运行时。解压完整目录后运行 `ArchiveBox.exe`。
-          - **lite.zip**：轻量版，需安装 [.NET 10 Desktop Runtime x64](https://dotnet.microsoft.com/download/dotnet/10.0)。
-          - **SHA256SUMS.txt**：两个发布包的 SHA-256 校验值。
-
-          两个包均在 Windows 上构建，核心测试和 WPF 窗口初始化检查已通过。系统回收站交互仍需按实际磁盘环境核对。
-
-          到期仅提醒，不自动删除文件；复制操作的源文件不受归档到期处理影响。第一版使用手动刷新。源码、使用说明和备份方法见仓库 README。
-          '@
-          $notes | Set-Content artifacts/release-notes.md -Encoding utf8NoBOM
+          $package = Join-Path $PWD "artifacts/ArchiveBox-$env:RELEASE_TAG-win-x64.zip"
+          if (-not (Test-Path $package)) { throw 'The package version does not match the release tag.' }
+          "{0}  {1}" -f (Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant(), [IO.Path]::GetFileName($package) | Set-Content artifacts/SHA256SUMS.txt -Encoding utf8NoBOM
+          Copy-Item RELEASE_NOTES.md artifacts/release-notes.md
           gh release view $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --json isDraft > $null 2>&1
           if ($LASTEXITCODE -ne 0) {
-            gh release create $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --verify-tag --draft --title "归档盒 $env:RELEASE_TAG" --notes-file artifacts/release-notes.md
+            gh release create $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --verify-tag --draft --title "ArchiveBox $env:RELEASE_TAG - .NET Framework 4.8" --notes-file artifacts/release-notes.md
             if ($LASTEXITCODE -ne 0) { throw 'Failed to create release draft.' }
           }
-          gh release upload $env:RELEASE_TAG $packages[0].FullName $packages[1].FullName artifacts/SHA256SUMS.txt --repo $env:RELEASE_REPOSITORY --clobber
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to upload release packages.' }
-          gh release edit $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --target $env:GITHUB_SHA --draft=false --latest --title "归档盒 $env:RELEASE_TAG" --notes-file artifacts/release-notes.md
+          gh release upload $env:RELEASE_TAG $package artifacts/SHA256SUMS.txt --repo $env:RELEASE_REPOSITORY --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to upload release package.' }
+          gh release edit $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --target $env:GITHUB_SHA --draft=false --latest --title "ArchiveBox $env:RELEASE_TAG - .NET Framework 4.8" --notes-file artifacts/release-notes.md
           if ($LASTEXITCODE -ne 0) { throw 'Failed to publish release.' }
       - uses: actions/upload-artifact@v4
         if: failure()

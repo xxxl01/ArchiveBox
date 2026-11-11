@@ -1,4 +1,4 @@
-param([string]$Executable = "artifacts/ArchiveBox-win-x64-standalone/ArchiveBox.exe")
+param([string]$Executable = "artifacts/ArchiveBox-v0.2.0-win-x64/ArchiveBox.exe")
 $ErrorActionPreference = "Stop"
 $exe = (Resolve-Path $Executable).Path
 $data = Join-Path $PSScriptRoot "../artifacts/smoke-test"
@@ -8,8 +8,8 @@ $marker = Join-Path $data 'smoke-success.txt'
 if (Test-Path $marker) { Remove-Item $marker }
 $info = [System.Diagnostics.ProcessStartInfo]::new($exe)
 $info.UseShellExecute = $false
-$info.ArgumentList.Add('--smoke-test')
-$info.Environment['ARCHIVEBOX_SMOKE_DATA'] = $data
+$info.Arguments = '--smoke-test'
+$info.EnvironmentVariables['ARCHIVEBOX_SMOKE_DATA'] = $data
 $process = [System.Diagnostics.Process]::Start($info)
 try {
     if (-not $process.WaitForExit(45000)) { throw 'Window initialization did not finish within 45 seconds.' }
