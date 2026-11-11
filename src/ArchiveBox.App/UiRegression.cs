@@ -113,6 +113,12 @@ internal static class UiRegression
         Check(await Task.WhenAny(emptyLoad, Task.Delay(2000)) == emptyLoad, "No-rule expired page must finish immediately.");
         Check(!vm.IsLoading && vm.Rows.Count == 0, "No-rule results must be empty without a lingering loading flag.");
         repository.SetRule(archive, ".", true, DateTimeOffset.UtcNow.AddDays(-1));
+        vm.ScannerFactory = rules => new ExpiryScanner(rules);
+        await vm.SwitchViewCommand.ExecuteAsync("due");
+        var actualLoad = vm.ExpiryLoadTask;
+        Check(await Task.WhenAny(actualLoad, Task.Delay(5000)) == actualLoad, "A small real archive scan must finish promptly.");
+        Check(!vm.IsLoading && vm.Rows.Count == 4 && vm.FileCount == 4, "The real scanner must display tracked, untracked, and nested expired files exactly once.");
+        await Capture(window, "due-completed.png", 1360, 860);
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
         vm.ScannerFactory = rules => new ExpiryScanner(rules, (folder, token) =>
