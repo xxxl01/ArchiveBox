@@ -1,5 +1,6 @@
+param([switch]$SmokeTest)
 $ErrorActionPreference = 'Stop'
-$folder = Join-Path $env:LOCALAPPDATA 'ArchiveBox'
+$folder = if ($SmokeTest) { Join-Path $PSScriptRoot 'diagnostic-smoke-test' } else { Join-Path $env:LOCALAPPDATA 'ArchiveBox' }
 try { $null = New-Item -ItemType Directory -Path $folder -Force }
 catch {
     $folder = Join-Path $env:TEMP 'ArchiveBox'
@@ -26,10 +27,17 @@ try {
     $info.UseShellExecute = $false
     $info.RedirectStandardError = $true
     $info.RedirectStandardOutput = $true
+    if ($SmokeTest) {
+        $info.Arguments = '--smoke-test'
+        $info.EnvironmentVariables['ARCHIVEBOX_SMOKE_DATA'] = Join-Path $folder 'appdata'
+    }
     $process = [System.Diagnostics.Process]::Start($info)
     $stderr = $process.StandardError.ReadToEndAsync()
     $stdout = $process.StandardOutput.ReadToEndAsync()
-    $process.WaitForExit()
+    if ($SmokeTest) {
+        if (-not $process.WaitForExit(45000)) { $process.Kill(); throw 'Diagnostic startup check timed out.' }
+    }
+    else { $process.WaitForExit() }
     $exitCode = $process.ExitCode
     $stderr.Result | Out-File $log -Append -Encoding utf8
     $stdout.Result | Out-File $log -Append -Encoding utf8

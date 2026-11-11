@@ -56,7 +56,7 @@ Windows 本地文件归档工具，基于 **WPF + .NET Framework 4.8 + SQLite**�
 
 应用目标为 **.NET Framework 4.8**，核心库目标为 .NET Standard 2.0（由 Framework 4.8 应用加载），测试项目也目标为 Framework 4.8。编译器可以使用现代 C#，不意味着用户运行时需要现代 .NET。
 
-在 Windows 安装 Visual Studio 2022 17.14 或更新版本（“.NET 桌面开发”工作负载，含 MSBuild、VSTest、Framework 4.8 开发组件，以及构建所需的 SDK）。打开 `ArchiveBox.sln`，或在 PowerShell 中运行：
+在 Windows 安装 Visual Studio 2022 17.14 或更新版本（“.NET 桌面开发”工作负载，含 MSBuild、Framework 4.8 开发组件，以及构建所需的 SDK）。打开 `ArchiveBox.sln`，或在 PowerShell 中运行：
 
 ```powershell
 # 编译、运行 Framework 测试、生成唯一的主发行包
@@ -75,7 +75,7 @@ tests/ArchiveBox.Core.Tests/ Framework 4.8 测试
 scripts/                    启动检查及用户诊断入口
 ```
 
-核心测试使用临时目录，回收站测试使用替身，不操作真实回收站。目录联接测试在临时目录中创建并移除 junction。启动检查使用隔离的数据目录，不修改正常使用的数据库。
+核心测试使用独立的 Framework xUnit 宿主和临时目录，回收站测试使用替身，不操作真实回收站。目录联接测试在临时目录中创建并移除 junction。启动检查使用隔离的数据目录，不修改正常使用的数据库；另外用 Windows PowerShell 5.1 检查诊断入口。
 
 GitHub Actions 在 Windows Server 2022、2025 上编译、运行 Framework 测试并检查窗口初始化；没有 Windows 11 21H2 runner，不宣称已经在 build 22000 上实测。只有相应工作流通过后才代表该检查通过。
 

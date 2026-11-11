@@ -21,6 +21,9 @@ jobs:
       - name: Check packaged desktop startup
         shell: pwsh
         run: ./scripts/smoke-test.ps1
+      - name: Check Windows PowerShell diagnostic launcher
+        shell: powershell
+        run: ./artifacts/ArchiveBox-v0.2.0-win-x64/Diagnose-ArchiveBox.ps1 -SmokeTest
       - uses: actions/upload-artifact@v4
         with:
           name: ArchiveBox-net48-${{ matrix.os }}
@@ -29,5 +32,5 @@ jobs:
         if: failure()
         with:
           name: startup-diagnostics-${{ matrix.os }}
-          path: artifacts/smoke-test/*.log
+          path: artifacts/**/*.log
           if-no-files-found: ignore

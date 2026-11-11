@@ -18,6 +18,9 @@ jobs:
       - name: Check packaged desktop startup
         shell: pwsh
         run: ./scripts/smoke-test.ps1
+      - name: Check Windows PowerShell diagnostic launcher
+        shell: powershell
+        run: ./artifacts/ArchiveBox-v0.2.0-win-x64/Diagnose-ArchiveBox.ps1 -SmokeTest
       - name: Publish release
         shell: pwsh
         env:
@@ -45,6 +48,6 @@ jobs:
         with:
           name: release-diagnostics
           path: |
-            artifacts/smoke-test/*.log
+            artifacts/**/*.log
             artifacts/*.zip
           if-no-files-found: ignore

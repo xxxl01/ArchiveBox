@@ -9,10 +9,10 @@ try {
     & $msbuild ArchiveBox.sln /restore /m /verbosity:minimal /p:Configuration=Release /p:DebugType=None /p:DebugSymbols=false
     if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
     if (-not $SkipTests) {
-        $vstest = & $vswhere -latest -products * -find '**\vstest.console.exe' | Select-Object -First 1
-        if (-not $vstest) { throw 'Visual Studio Test Platform was not found.' }
         $tests = Join-Path $PSScriptRoot 'tests/ArchiveBox.Core.Tests/bin/Release/net48'
-        & $vstest (Join-Path $tests 'ArchiveBox.Core.Tests.dll') /Platform:x64 "/TestAdapterPath:$tests" '/Logger:console;verbosity=normal'
+        $runner = Join-Path $tests 'xunit-console/xunit.console.exe'
+        if (-not (Test-Path $runner)) { throw 'The .NET Framework xUnit console runner was not restored.' }
+        & $runner (Join-Path $tests 'ArchiveBox.Core.Tests.dll') -appdomains required -noshadow -noautoreporters
         if ($LASTEXITCODE -ne 0) { throw '.NET Framework 4.8 tests failed.' }
     }
     $project = [xml](Get-Content src/ArchiveBox.App/ArchiveBox.App.csproj -Raw)
