@@ -73,8 +73,14 @@ public sealed partial class ArchiveService
                 if (mode == ArchiveMode.Move)
                 {
                     // Only remove empty directories; new or failed files keep their source folders intact.
-                    foreach (var folder in directories.OrderByDescending(p => p.Length))
-                        if (Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder);
+                    await Task.Run(() =>
+                    {
+                        foreach (var folder in directories.OrderByDescending(p => p.Length))
+                        {
+                            token.ThrowIfCancellationRequested();
+                            if (Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder);
+                        }
+                    }, token);
                 }
                 if (files.Count == 0) results.Add(new(path, destination, true, false, null));
             }

@@ -90,6 +90,11 @@ internal static class UiRegression
         Check(vm.Rows.Single(r => r.Name == "复制示例.txt").Expiry?.ExpiresAt == folderDate, "Clearing a file override must restore inheritance.");
         await Capture(window, "archive-1080.png", 1080, 640);
         await Capture(window, "archive-1360.png", 1360, 860);
+        var folderColumn = (ColumnDefinition)window.FindName("ArchiveFoldersColumn");
+        folderColumn.Width = new GridLength(280);
+        await vm.SwitchViewCommand.ExecuteAsync("browse");
+        window.UpdateLayout();
+        Check(folderColumn.ActualWidth < 1, "Resizing archive folders must not leave a blank column on other pages.");
         foreach (var view in new[] { "soon", "due", "history", "home" }) await vm.SwitchViewCommand.ExecuteAsync(view);
         Check(dialogs.Confirmations == 4, "Every copy/move click must request confirmation exactly once.");
         Check(!App.SmokeFailed, "No unexpected managed errors may occur.");

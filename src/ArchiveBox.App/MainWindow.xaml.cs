@@ -12,6 +12,7 @@ public partial class MainWindow : Window
 {
     internal MainViewModel ViewModel => (MainViewModel)DataContext;
     private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(7) };
+    private GridLength? _archivePaneWidth;
     internal SmokeDialogs? TestDialogs { get; }
     public MainWindow()
     {
@@ -32,6 +33,12 @@ public partial class MainWindow : Window
     }
     private void UpdateColumns()
     {
+        if (!ViewModel.IsArchive)
+        {
+            if (ArchiveFoldersColumn.ReadLocalValue(ColumnDefinition.WidthProperty) is GridLength width && width.Value > 0) _archivePaneWidth = width;
+            ArchiveFoldersColumn.ClearValue(ColumnDefinition.WidthProperty);
+        }
+        else if (_archivePaneWidth.HasValue) ArchiveFoldersColumn.Width = _archivePaneWidth.Value;
         var expiry = ViewModel.IsArchive || ViewModel.CurrentView is "soon" or "due";
         ExpiryColumn.Visibility = RuleColumn.Visibility = expiry ? Visibility.Visible : Visibility.Collapsed;
         ModifiedColumn.Visibility = ViewModel.IsBrowser || ViewModel.IsHistory ? Visibility.Visible : Visibility.Collapsed;
