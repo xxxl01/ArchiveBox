@@ -7,12 +7,29 @@ public partial class App : Application
 {
     private Mutex? _instance;
     private bool _ownsMutex;
-    public static string DataFolder { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ArchiveBox");
+    private static string? _smokeDataFolder;
+    public static bool IsSmokeTest { get; private set; }
+    public static bool SmokeFailed { get; set; }
+    public static string DataFolder => _smokeDataFolder ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ArchiveBox");
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        _instance = new Mutex(true, @"Local\ArchiveBox.Desktop", out _ownsMutex);
+        IsSmokeTest = e.Args.Contains("--smoke-test", StringComparer.Ordinal);
+        if (IsSmokeTest)
+        {
+            _smokeDataFolder = Environment.GetEnvironmentVariable("ARCHIVEBOX_SMOKE_DATA")
+                ?? Path.Combine(Path.GetTempPath(), "ArchiveBox-smoke-" + Guid.NewGuid().ToString("N"));
+            DispatcherUnhandledException += (_, error) =>
+            {
+                WriteLog(error.Exception);
+                SmokeFailed = true;
+                error.Handled = true;
+                Shutdown(1);
+            };
+        }
+        var mutexName = IsSmokeTest ? @"Local\ArchiveBox.Smoke." + Guid.NewGuid().ToString("N") : @"Local\ArchiveBox.Desktop";
+        _instance = new Mutex(true, mutexName, out _ownsMutex);
         if (!_ownsMutex)
         {
             MessageBox.Show("归档盒已经在运行，请切换到已打开的窗口。", "归档盒");
@@ -29,7 +46,7 @@ public partial class App : Application
         catch (Exception error)
         {
             WriteLog(error);
-            MessageBox.Show($"启动失败：{error.Message}\n\n请检查本地数据目录：{DataFolder}", "归档盒");
+            if (!IsSmokeTest) MessageBox.Show($"启动失败：{error.Message}\n\n请检查本地数据目录：{DataFolder}", "归档盒");
             Shutdown(1);
         }
     }

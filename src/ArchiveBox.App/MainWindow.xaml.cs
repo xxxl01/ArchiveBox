@@ -1,9 +1,11 @@
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace ArchiveBox.App;
 
@@ -17,7 +19,17 @@ public partial class MainWindow : Window
         DataContext = new MainViewModel();
     }
 
-    private async void Window_Loaded(object sender, RoutedEventArgs e) => await ViewModel.InitializeAsync();
+    private async void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.InitializeAsync();
+        if (!App.IsSmokeTest) return;
+        // Initialization is asynchronous. Close only after it finishes and WPF has
+        // processed layout, instead of racing the normal busy-operation close guard.
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+        if (!App.SmokeFailed)
+            File.WriteAllText(Path.Combine(App.DataFolder, "smoke-success.txt"), "Window and view model initialized successfully.");
+        Application.Current.Shutdown(App.SmokeFailed ? 1 : 0);
+    }
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {

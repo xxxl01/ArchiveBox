@@ -200,7 +200,8 @@ public partial class MainViewModel : ObservableObject
         App.WriteLog(error);
         Status = error.Message;
         ResultDetails = error.Message;
-        MessageBox.Show(Application.Current.MainWindow, error.Message, "归档盒", MessageBoxButton.OK, MessageBoxImage.Warning);
+        if (App.IsSmokeTest) App.SmokeFailed = true;
+        else MessageBox.Show(Application.Current.MainWindow, error.Message, "归档盒", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private void Safe(Action action) { try { action(); } catch (Exception error) { ReportError(error); } }

@@ -16,23 +16,14 @@ jobs:
         run: ./build.ps1 -SelfContained
       - name: Check desktop window starts
         shell: pwsh
-        run: |
-          $exe = Join-Path $PWD 'artifacts/ArchiveBox-win-x64-standalone/ArchiveBox.exe'
-          $process = Start-Process -FilePath $exe -PassThru
-          try {
-            $deadline = (Get-Date).AddSeconds(30)
-            do {
-              Start-Sleep -Milliseconds 500
-              $process.Refresh()
-              if ($process.HasExited) { throw "Application exited during startup: $($process.ExitCode)" }
-            } while ($process.MainWindowHandle -eq 0 -and (Get-Date) -lt $deadline)
-            if ($process.MainWindowHandle -eq 0) { throw 'No desktop window was created.' }
-            $null = $process.CloseMainWindow()
-            if (-not $process.WaitForExit(10000)) { throw 'Application did not close normally.' }
-            if ($process.ExitCode -ne 0) { throw "Application exited with code $($process.ExitCode)." }
-          }
-          finally { if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force } }
+        run: ./scripts/smoke-test.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: ArchiveBox-win-x64
           path: artifacts/*.zip
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: startup-diagnostics
+          path: artifacts/smoke-test/*.log
+          if-no-files-found: ignore
