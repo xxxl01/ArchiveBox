@@ -37,7 +37,8 @@ public sealed class ExpiryScanner
         {
             if (!force && clock.ElapsedMilliseconds - lastReport < 100 && pending.Count < 128) return;
             token.ThrowIfCancellationRequested();
-            if (pending.Count > 0) { batch?.Invoke(pending.ToArray()); pending.Clear(); }
+            if (pending.Count > 0)
+            { batch?.Invoke(pending.ToArray()); pending.Clear(); token.ThrowIfCancellationRequested(); }
             progress?.Invoke(new(checkedFolders, checkedFiles, found, skipped)); lastReport = clock.ElapsedMilliseconds;
         }
         void Consider(DirectoryEntry entry, ExpiryDecision decision)
