@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 
 namespace ArchiveBox.Core;
 
-public sealed class ArchiveService(ArchiveRepository repository)
+public sealed partial class ArchiveService(ArchiveRepository repository)
 {
     private const int BufferSize = 128 * 1024;
 
@@ -123,6 +123,8 @@ public sealed class ArchiveService(ArchiveRepository repository)
                 repository.Save(item);
             }
             progress?.Report(new(item.Name, index, count, item.Size, item.Size));
+            if (expiry.HasValue) repository.SetRule(root, item.RelativePath, false, expiry);
+            else repository.RemoveRule(root, item.RelativePath, false);
             return new(source, target, true, false, item.Error);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or OperationCanceledException)

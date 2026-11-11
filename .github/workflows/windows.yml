@@ -23,11 +23,17 @@ jobs:
         run: ./scripts/smoke-test.ps1
       - name: Check Windows PowerShell diagnostic launcher
         shell: powershell
-        run: ./artifacts/ArchiveBox-v0.2.0-win-x64/Diagnose-ArchiveBox.ps1 -SmokeTest
+        run: ./artifacts/ArchiveBox-v0.3.0-win-x64/Diagnose-ArchiveBox.ps1 -SmokeTest
       - uses: actions/upload-artifact@v4
         with:
           name: ArchiveBox-net48-${{ matrix.os }}
           path: artifacts/*.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-screenshots-${{ runner.os }}-${{ strategy.job-index }}
+          path: artifacts/smoke-test/screenshots/*.png
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

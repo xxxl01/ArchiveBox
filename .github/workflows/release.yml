@@ -20,7 +20,7 @@ jobs:
         run: ./scripts/smoke-test.ps1
       - name: Check Windows PowerShell diagnostic launcher
         shell: powershell
-        run: ./artifacts/ArchiveBox-v0.2.0-win-x64/Diagnose-ArchiveBox.ps1 -SmokeTest
+        run: ./artifacts/ArchiveBox-v0.3.0-win-x64/Diagnose-ArchiveBox.ps1 -SmokeTest
       - name: Publish release
         shell: pwsh
         env:
@@ -43,6 +43,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Failed to upload release package.' }
           gh release edit $env:RELEASE_TAG --repo $env:RELEASE_REPOSITORY --target $env:GITHUB_SHA --draft=false --latest --title "ArchiveBox $env:RELEASE_TAG - .NET Framework 4.8" --notes-file artifacts/release-notes.md
           if ($LASTEXITCODE -ne 0) { throw 'Failed to publish release.' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-screenshots-${{ runner.os }}-${{ strategy.job-index }}
+          path: artifacts/smoke-test/screenshots/*.png
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

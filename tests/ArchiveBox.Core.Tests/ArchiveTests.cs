@@ -340,6 +340,156 @@ public sealed class ArchiveTests : IDisposable
         Assert.Equal(ItemState.Recycling, _repository.Get(item.Id).State);
     }
 
+    [Fact]
+    public void Favorites_PersistAndCanBeRemovedWithoutDeletingFolder()
+    {
+        _repository.SetFavorite(Source, true);
+        _repository.SetFavorite(Source + Path.DirectorySeparatorChar, true);
+        Assert.Equal(Source, Assert.Single(new ArchiveRepository(Db).GetFavorites()).Path);
+        _repository.SetFavorite(Source, false);
+        Assert.Empty(_repository.GetFavorites());
+        Assert.True(Directory.Exists(Source));
+    }
+
+    [Fact]
+    public void FolderExpiry_UsesNearestAncestorAndFileOverride()
+    {
+        var parent = DateTimeOffset.UtcNow.AddDays(7);
+        var child = DateTimeOffset.UtcNow.AddDays(30);
+        var file = DateTimeOffset.UtcNow.AddDays(90);
+        _repository.SetRule(Root, ".", true, parent);
+        _repository.SetRule(Root, "work", true, child);
+        var relative = Path.Combine("work", "project", "file.txt");
+        Assert.Equal(child, _repository.GetRules().Resolve(Root, relative).ExpiresAt);
+        _repository.SetRule(Root, relative, false, file);
+        Assert.Equal(file, _repository.GetRules().Resolve(Root, relative).ExpiresAt);
+        _repository.RemoveRule(Root, relative, false);
+        Assert.Equal(child, _repository.GetRules().Resolve(Root, relative).ExpiresAt);
+    }
+
+    [Fact]
+    public void ExplicitNoExpiry_OverridesExpiredFolder()
+    {
+        _repository.SetRule(Root, ".", true, DateTimeOffset.UtcNow.AddDays(-1));
+        _repository.SetRule(Root, "keep.txt", false, null);
+        var decision = _repository.GetRules().Resolve(Root, "keep.txt");
+        Assert.True(decision.IsExplicit);
+        Assert.Null(decision.ExpiresAt);
+        Assert.NotNull(_repository.GetRules().Resolve(Root, "other.txt").ExpiresAt);
+    }
+
+    [Fact]
+    public void FolderNoExpiry_OverridesParentAndKeepsFileException()
+    {
+        var fileDate = DateTimeOffset.UtcNow.AddDays(90);
+        _repository.SetRule(Root, ".", true, DateTimeOffset.UtcNow.AddDays(7));
+        _repository.SetRule(Root, "work", true, null);
+        _repository.SetRule(Root, Path.Combine("work", "keep.txt"), false, fileDate);
+        Assert.Null(_repository.GetRules().Resolve(Root, Path.Combine("work", "other.txt")).ExpiresAt);
+        Assert.Equal(fileDate, _repository.GetRules().Resolve(Root, Path.Combine("work", "keep.txt")).ExpiresAt);
+        _repository.RemoveRule(Root, "work", true);
+        Assert.NotNull(_repository.GetRules().Resolve(Root, Path.Combine("work", "other.txt")).ExpiresAt);
+        Assert.Equal(fileDate, _repository.GetRules().Resolve(Root, Path.Combine("work", "keep.txt")).ExpiresAt);
+    }
+
+    [Fact]
+    public void Rules_DoNotLeakAcrossRootsOrSiblingNames()
+    {
+        var expiry = DateTimeOffset.UtcNow.AddDays(7);
+        _repository.SetRule(Root, "work", true, expiry);
+        Assert.Null(_repository.GetRules().Resolve(Root, Path.Combine("work-other", "file.txt")).ExpiresAt);
+        Assert.Null(_repository.GetRules().Resolve(Source, Path.Combine("work", "file.txt")).ExpiresAt);
+    }
+
+    [Fact]
+    public async Task NewArchiveFile_InheritsFolderRule()
+    {
+        var expiry = DateTimeOffset.UtcNow.AddDays(7);
+        _repository.SetRule(Root, ".", true, expiry);
+        var result = Assert.Single(await Transfer(MakeFile()));
+        var decision = _repository.GetRules().Resolve(Root, Path.GetFileName(result.Destination!));
+        Assert.False(decision.IsExplicit);
+        Assert.Equal(expiry, decision.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task DirectoryCopy_PreservesHierarchyAndEmptyFolders()
+    {
+        var folder = Path.Combine(Source, "project");
+        Directory.CreateDirectory(Path.Combine(folder, "nested", "empty"));
+        File.WriteAllText(Path.Combine(folder, "nested", "report.txt"), "nested content");
+        var result = await _service.TransferSelectionAsync([folder], Root, Root, ArchiveMode.Copy, ConflictPolicy.Rename);
+        Assert.All(result, r => Assert.True(r.Success));
+        Assert.True(File.Exists(Path.Combine(folder, "nested", "report.txt")));
+        Assert.Equal("nested content", File.ReadAllText(Path.Combine(Root, "project", "nested", "report.txt")));
+        Assert.True(Directory.Exists(Path.Combine(Root, "project", "nested", "empty")));
+    }
+
+    [Fact]
+    public async Task DirectoryMove_RemovesOnlyVerifiedSourceContents()
+    {
+        var folder = Path.Combine(Source, "project");
+        Directory.CreateDirectory(Path.Combine(folder, "nested"));
+        File.WriteAllText(Path.Combine(folder, "nested", "report.txt"), "move content");
+        var result = await _service.TransferSelectionAsync([folder], Root, Root, ArchiveMode.Move, ConflictPolicy.Rename);
+        Assert.All(result, r => Assert.True(r.Success));
+        Assert.False(Directory.Exists(folder));
+        Assert.Equal("move content", File.ReadAllText(Path.Combine(Root, "project", "nested", "report.txt")));
+    }
+
+    [Fact]
+    public async Task DirectoryTransfer_RejectsItsOwnDescendant()
+    {
+        var folder = Path.Combine(Root, "project");
+        var child = Path.Combine(folder, "nested");
+        Directory.CreateDirectory(child);
+        var source = Path.Combine(folder, "keep.txt");
+        File.WriteAllText(source, "keep");
+        var result = Assert.Single(await _service.TransferSelectionAsync([folder], Root, child, ArchiveMode.Move, ConflictPolicy.Rename));
+        Assert.False(result.Success);
+        Assert.Equal("keep", File.ReadAllText(source));
+    }
+
+    [Fact]
+    public async Task DirectoryConflict_SkipKeepsSource()
+    {
+        var folder = Path.Combine(Source, "project");
+        Directory.CreateDirectory(folder);
+        Directory.CreateDirectory(Path.Combine(Root, "project"));
+        var result = Assert.Single(await _service.TransferSelectionAsync([folder], Root, Root, ArchiveMode.Move, ConflictPolicy.Skip));
+        Assert.True(result.Skipped);
+        Assert.True(Directory.Exists(folder));
+    }
+
+    [Fact]
+    public async Task ExistingArchiveFile_CanBeRegisteredOnceWithoutMoving()
+    {
+        var path = Path.Combine(Root, "existing.txt");
+        File.WriteAllText(path, "existing");
+        var first = await _service.RegisterExistingAsync(Root, path);
+        var second = await _service.RegisterExistingAsync(Root, path);
+        Assert.Equal(first.Id, second.Id);
+        Assert.Single(_repository.GetItems());
+        Assert.Equal("existing", File.ReadAllText(path));
+    }
+
+    [Fact]
+    public async Task OldExpiry_MigratesWithoutResettingArchiveData()
+    {
+        var expiry = DateTimeOffset.UtcNow.AddDays(30);
+        await Transfer(MakeFile(), expiry: expiry);
+        using (var connection = new SqliteConnection("Data Source=" + Db))
+        {
+            connection.Open(); using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM expiry_rules; DELETE FROM settings WHERE key='expiryRulesMigrated'; PRAGMA user_version=1;";
+            command.ExecuteNonQuery();
+        }
+        var migrated = new ArchiveRepository(Db);
+        var item = Assert.Single(migrated.GetItems());
+        Assert.Equal(expiry, migrated.GetRules().Resolve(Root, item.RelativePath).ExpiresAt);
+        Assert.True(File.Exists(item.FullPath));
+    }
+
     private ArchiveItem NewItem(string source, string relative, ItemState state) => new(
         Guid.NewGuid().ToString("N"), Root, relative, source, ArchiveMode.Move, DateTimeOffset.UtcNow,
         null, state, new FileInfo(source).Length, null, null);

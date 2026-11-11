@@ -1,224 +1,183 @@
-<Window x:Class="ArchiveBox.App.MainWindow"
+<Window x:Class="ArchiveBox.App.MainWindow" x:Name="WindowRoot"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
- xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- xmlns:local="clr-namespace:ArchiveBox.App"
- Title="归档盒 · ArchiveBox" Width="1440" Height="880" MinWidth="1180" MinHeight="720"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:ArchiveBox.App"
+ Title="归档盒 · ArchiveBox" Width="1360" Height="860" MinWidth="1080" MinHeight="640"
  WindowStartupLocation="CenterScreen" Loaded="Window_Loaded" Closing="Window_Closing">
- <Window.InputBindings>
-  <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
-  <KeyBinding Key="O" Modifiers="Control" Command="{Binding ChooseSourceCommand}" />
- </Window.InputBindings>
+ <Window.Resources>
+  <local:ViewEqualityConverter x:Key="ViewEquality" />
+  <Style x:Key="Navigation" TargetType="Button" BasedOn="{StaticResource NavButton}">
+   <Setter Property="HorizontalContentAlignment" Value="Left" />
+   <Style.Triggers><DataTrigger Value="True"><DataTrigger.Binding>
+    <MultiBinding Converter="{StaticResource ViewEquality}"><Binding Path="CurrentView" /><Binding Path="Tag" RelativeSource="{RelativeSource Self}" /></MultiBinding>
+   </DataTrigger.Binding><Setter Property="Background" Value="#D3E6DA" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers>
+  </Style>
+  <HierarchicalDataTemplate x:Key="Folders" DataType="{x:Type local:FolderNode}" ItemsSource="{Binding Children}">
+   <Grid Margin="0,5"><Grid.ColumnDefinitions><ColumnDefinition Width="22" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+    <Path Data="M1,4 L7,4 9,6 19,6 19,17 1,17 Z" Stroke="#49806A" Fill="#E0EDE5" Width="18" Height="17" Stretch="Uniform" />
+    <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip="{Binding Path}" />
+    <TextBlock Grid.Column="2" Text="{Binding ExpiryLabel}" FontSize="10" Foreground="#8D7658" Margin="7,0,0,0" VerticalAlignment="Center" />
+   </Grid>
+  </HierarchicalDataTemplate>
+  <Style x:Key="FolderItem" TargetType="TreeViewItem">
+   <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" /><Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+   <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="ToolTip" Value="{Binding PolicyDescription}" />
+   <EventSetter Event="Expanded" Handler="FolderNode_Expanded" />
+  </Style>
+ </Window.Resources>
+ <Window.InputBindings><KeyBinding Key="F5" Command="{Binding RefreshCommand}" /><KeyBinding Key="O" Modifiers="Control" Command="{Binding ChooseSourceCommand}" /></Window.InputBindings>
  <Grid>
-  <Grid.ColumnDefinitions><ColumnDefinition Width="196" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-  <Border Grid.Column="0" Background="#EAF0EC" BorderBrush="#DCE5DE" BorderThickness="0,0,1,0">
-   <Grid Margin="16,28,16,20">
-    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-    <StackPanel Margin="12,0,0,32">
-     <StackPanel Orientation="Horizontal">
-      <Border Background="#147D64" CornerRadius="10" Width="35" Height="35" Margin="0,0,10,0">
-       <TextBlock Text="&#xE7B8;" FontFamily="Segoe MDL2 Assets" Foreground="White" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
-      </Border>
-      <TextBlock Text="归档盒" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
-     </StackPanel>
-     <TextBlock Text="给文件一个好去处" Foreground="#718177" Margin="0,12,0,0" FontSize="12" />
+  <Grid.ColumnDefinitions><ColumnDefinition Width="184" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+  <Border Background="#EAF0EC" BorderBrush="#DCE5DE" BorderThickness="0,0,1,0">
+   <Grid Margin="14,25,14,16"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+    <StackPanel Margin="10,0,0,27"><StackPanel Orientation="Horizontal">
+     <Border Background="#147D64" CornerRadius="9" Width="32" Height="32" Margin="0,0,9,0"><TextBlock Text="▤" Foreground="White" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+     <TextBlock Text="归档盒" FontSize="23" FontWeight="SemiBold" VerticalAlignment="Center" />
+    </StackPanel><TextBlock Text="给文件一个好去处" FontSize="11" Foreground="#718177" Margin="0,10,0,0" /></StackPanel>
+    <StackPanel Grid.Row="1"><TextBlock Text="工作空间" FontSize="11" Foreground="#7C8C82" Margin="12,0,0,12" />
+     <Button Style="{StaticResource Navigation}" Tag="home" Command="{Binding SwitchViewCommand}" CommandParameter="home"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE80F;" Margin="0,0,12,0" VerticalAlignment="Center" /><TextBlock Text="首页" /></StackPanel></Button>
+<Button Style="{StaticResource Navigation}" Tag="browse" Command="{Binding SwitchViewCommand}" CommandParameter="browse"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8B7;" Margin="0,0,12,0" VerticalAlignment="Center" /><TextBlock Text="浏览文件" /></StackPanel></Button>
+<Button Style="{StaticResource Navigation}" Tag="all" Command="{Binding SwitchViewCommand}" CommandParameter="all"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7B8;" Margin="0,0,12,0" VerticalAlignment="Center" /><TextBlock Text="归档文件" /></StackPanel></Button>
+<Button Style="{StaticResource Navigation}" Tag="soon" Command="{Binding SwitchViewCommand}" CommandParameter="soon"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE823;" Margin="0,0,12,0" VerticalAlignment="Center" /><TextBlock Text="即将到期" /></StackPanel></Button>
+<Button Style="{StaticResource Navigation}" Tag="due" Command="{Binding SwitchViewCommand}" CommandParameter="due"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE916;" Margin="0,0,12,0" VerticalAlignment="Center" /><TextBlock Text="已到期" /></StackPanel></Button>
+<Border Height="1" Background="#D5DFD8" Margin="10,9" />
+<Button Style="{StaticResource Navigation}" Tag="history" Command="{Binding SwitchViewCommand}" CommandParameter="history"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE81C;" Margin="0,0,12,0" VerticalAlignment="Center" /><TextBlock Text="任务记录" /></StackPanel></Button>
+<Border Height="1" Background="#D5DFD8" Margin="10,9" />
+<Button Style="{StaticResource Navigation}" Tag="settings" Command="{Binding SwitchViewCommand}" CommandParameter="settings"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" Margin="0,0,12,0" VerticalAlignment="Center" /><TextBlock Text="设置" /></StackPanel></Button>
     </StackPanel>
-    <StackPanel Grid.Row="1">
-     <TextBlock Text="工作空间" Foreground="#7C8C82" FontSize="11" Margin="14,0,0,12" />
-     <Button Command="{Binding SwitchViewCommand}" CommandParameter="browse">
-      <Button.Style><Style TargetType="Button" BasedOn="{StaticResource NavButton}"><Style.Triggers>
-       <DataTrigger Binding="{Binding CurrentView}" Value="browse"><Setter Property="Background" Value="#D3E6DA" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger>
-      </Style.Triggers></Style></Button.Style>
-      <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" Margin="0,0,12,0" /><TextBlock Text="浏览文件" /></StackPanel>
-     </Button>
-     <Button Command="{Binding SwitchViewCommand}" CommandParameter="all">
-      <Button.Style><Style TargetType="Button" BasedOn="{StaticResource NavButton}"><Style.Triggers>
-       <DataTrigger Binding="{Binding CurrentView}" Value="all"><Setter Property="Background" Value="#D3E6DA" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger>
-      </Style.Triggers></Style></Button.Style>
-      <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7B8;" FontFamily="Segoe MDL2 Assets" Margin="0,0,12,0" /><TextBlock Text="全部归档" /><TextBlock Text="{Binding ArchiveCount}" Margin="12,0,0,0" Foreground="#718177" /></StackPanel>
-     </Button>
-     <Button Command="{Binding SwitchViewCommand}" CommandParameter="soon">
-      <Button.Style><Style TargetType="Button" BasedOn="{StaticResource NavButton}"><Style.Triggers>
-       <DataTrigger Binding="{Binding CurrentView}" Value="soon"><Setter Property="Background" Value="#D3E6DA" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger>
-      </Style.Triggers></Style></Button.Style>
-      <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE823;" FontFamily="Segoe MDL2 Assets" Margin="0,0,12,0" /><TextBlock Text="即将到期" /><TextBlock Text="{Binding SoonCount}" Margin="12,0,0,0" Foreground="#718177" /></StackPanel>
-     </Button>
-     <Button Command="{Binding SwitchViewCommand}" CommandParameter="due">
-      <Button.Style><Style TargetType="Button" BasedOn="{StaticResource NavButton}"><Style.Triggers>
-       <DataTrigger Binding="{Binding CurrentView}" Value="due"><Setter Property="Background" Value="#D3E6DA" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger>
-      </Style.Triggers></Style></Button.Style>
-      <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE916;" FontFamily="Segoe MDL2 Assets" Margin="0,0,12,0" /><TextBlock Text="已到期" /><TextBlock Text="{Binding DueCount}" Margin="12,0,0,0" Foreground="#A65F36" /></StackPanel>
-     </Button>
-     <Border Height="1" Background="#D5DFD8" Margin="12,15" />
-     <Button Command="{Binding SwitchViewCommand}" CommandParameter="history">
-      <Button.Style><Style TargetType="Button" BasedOn="{StaticResource NavButton}"><Style.Triggers>
-       <DataTrigger Binding="{Binding CurrentView}" Value="history"><Setter Property="Background" Value="#D3E6DA" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger>
-      </Style.Triggers></Style></Button.Style>
-      <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE81C;" FontFamily="Segoe MDL2 Assets" Margin="0,0,12,0" /><TextBlock Text="任务记录" /></StackPanel>
-     </Button>
-    </StackPanel>
-    <StackPanel Grid.Row="2" Margin="10,0,0,0">
-     <Button Content="打开本地数据目录" Command="{Binding OpenDataCommand}" Padding="0,8" HorizontalAlignment="Left" Background="Transparent" BorderThickness="0" Foreground="#64796D" FontSize="11" />
-     <TextBlock Text="ArchiveBox  /  v0.2.0" FontSize="11" Foreground="#8A988E" Margin="0,9,0,0" />
-    </StackPanel>
+    <StackPanel Grid.Row="2" Margin="8,0,0,0"><Button Content="打开本地数据目录" Command="{Binding OpenDataCommand}" FontSize="11" Padding="0,6" HorizontalAlignment="Left" Background="Transparent" BorderThickness="0" Foreground="#708477" />
+     <TextBlock Text="ArchiveBox / v0.3.0" FontSize="11" Foreground="#8A988E" Margin="0,8,0,0" /></StackPanel>
    </Grid>
   </Border>
+  <Grid Grid.Column="1" Margin="22,22,22,12">
+   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+   <StackPanel Margin="0,0,0,17"><TextBlock Text="{Binding PageTitle}" FontSize="25" FontWeight="SemiBold" />
+    <TextBlock Text="{Binding PageSubtitle}" FontSize="12" Foreground="#7B8980" Margin="0,7,0,0" /></StackPanel>
+   <Grid Grid.Row="1" Visibility="{Binding IsBrowser, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,12" IsEnabled="{Binding IsIdle}">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+    <Button Content="↑" Command="{Binding UpCommand}" ToolTip="上一级目录" />
+    <ComboBox x:Name="FolderBox" Grid.Column="1" ItemsSource="{Binding RecentFolders}" IsEditable="True" Text="{Binding CurrentFolder, UpdateSourceTrigger=PropertyChanged}" KeyDown="FolderBox_KeyDown" SelectionChanged="FolderBox_SelectionChanged" Margin="0,0,8,0" />
+    <Button Grid.Column="2" Content="打开" Command="{Binding NavigateCommand}" CommandParameter="{Binding CurrentFolder}" />
+    <Button Grid.Column="3" Content="选择文件夹" Command="{Binding ChooseSourceCommand}" />
+    <Button Grid.Column="4" Content="{Binding FavoriteButtonText}" Command="{Binding AddCurrentToHomeCommand}" Margin="0" />
+   </Grid>
+   <Grid Grid.Row="2" Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,10">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+    <StackPanel VerticalAlignment="Center"><TextBlock Text="{Binding ProgressText}" TextTrimming="CharacterEllipsis" FontSize="11" Foreground="#658373" Margin="0,0,0,4" />
+     <ProgressBar Value="{Binding Progress}" Height="3" Maximum="100" Foreground="#147D64" Background="#E0EAE3" BorderThickness="0" /></StackPanel>
+    <Button Grid.Column="1" Content="取消" Command="{Binding CancelCommand}" Margin="12,0,0,0" Padding="10,5" />
+   </Grid>
+   <Grid Grid.Row="3" x:Name="Workspace">
+    <Grid.ColumnDefinitions>
+     <ColumnDefinition x:Name="ArchiveFoldersColumn"><ColumnDefinition.Style><Style TargetType="ColumnDefinition"><Setter Property="Width" Value="0" /><Style.Triggers><DataTrigger Binding="{Binding IsArchive}" Value="True"><Setter Property="Width" Value="230" /></DataTrigger></Style.Triggers></Style></ColumnDefinition.Style></ColumnDefinition>
+     <ColumnDefinition><ColumnDefinition.Style><Style TargetType="ColumnDefinition"><Setter Property="Width" Value="0" /><Style.Triggers><DataTrigger Binding="{Binding IsArchive}" Value="True"><Setter Property="Width" Value="8" /></DataTrigger></Style.Triggers></Style></ColumnDefinition.Style></ColumnDefinition>
+     <ColumnDefinition Width="*" />
+     <ColumnDefinition><ColumnDefinition.Style><Style TargetType="ColumnDefinition"><Setter Property="Width" Value="0" /><Style.Triggers><DataTrigger Binding="{Binding IsBrowser}" Value="True"><Setter Property="Width" Value="14" /></DataTrigger></Style.Triggers></Style></ColumnDefinition.Style></ColumnDefinition>
+     <ColumnDefinition x:Name="TargetColumn"><ColumnDefinition.Style><Style TargetType="ColumnDefinition"><Setter Property="Width" Value="0" /><Style.Triggers><DataTrigger Binding="{Binding IsBrowser}" Value="True"><Setter Property="Width" Value="300" /></DataTrigger></Style.Triggers></Style></ColumnDefinition.Style></ColumnDefinition>
+    </Grid.ColumnDefinitions>
 
-  <Grid Grid.Column="1" Margin="26,26,26,16">
-   <Grid.RowDefinitions>
-    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
-   </Grid.RowDefinitions>
-   <Grid Margin="0,0,0,22">
-    <StackPanel>
-     <TextBlock Text="{Binding PageTitle}" FontSize="26" FontWeight="SemiBold" />
-     <TextBlock Text="{Binding PageSubtitle}" Foreground="#7B8980" Margin="0,8,0,0" />
-    </StackPanel>
-    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#E5EFE8" CornerRadius="12" Padding="12,6">
-     <TextBlock Text="●  本地文件 · 本地存储" Foreground="#52775D" FontSize="11" />
+    <ScrollViewer Grid.ColumnSpan="5" Visibility="{Binding IsHome, Converter={StaticResource BoolVisibility}}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <StackPanel><Grid Margin="0,0,0,18"><TextBlock Text="快速文件夹" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
+      <Button Content="添加文件夹" Command="{Binding AddHomeFolderCommand}" HorizontalAlignment="Right" Margin="0" /></Grid>
+      <ItemsControl ItemsSource="{Binding Favorites}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+       <ItemsControl.ItemTemplate><DataTemplate><Border Background="White" CornerRadius="10" BorderBrush="#DFE8E1" BorderThickness="1" Width="258" Height="125" Margin="0,0,14,14">
+        <Grid><Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Path}" Background="Transparent" BorderThickness="0" Padding="17" Margin="0" HorizontalContentAlignment="Stretch">
+         <StackPanel><Path Data="M1,4 L7,4 9,6 23,6 23,20 1,20 Z" Stroke="#147D64" Fill="#D5EADF" Width="27" Height="24" HorizontalAlignment="Left" Stretch="Uniform" Margin="0,0,0,9" />
+          <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding Path}" FontSize="10" Foreground="#7B8980" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" Margin="0,7,0,0" Width="220" /></StackPanel>
+        </Button><Button Content="×" Command="{Binding DataContext.RemoveFavoriteCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Path}" ToolTip="从首页移除，不删除文件夹" VerticalAlignment="Top" HorizontalAlignment="Right" Padding="7,2" Margin="4" BorderThickness="0" Background="Transparent" Foreground="#8A988E" /></Grid>
+       </Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+      <TextBlock Text="还没有快速文件夹。可以在这里添加，也可以在浏览文件时点击“添加到首页”。" Foreground="#87978C" TextWrapping="Wrap" Margin="0,4,0,18">
+       <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding HasFavorites}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+      </TextBlock>
+      <TextBlock Text="最近打开" FontSize="17" FontWeight="SemiBold" Margin="0,14,0,12" />
+      <ItemsControl ItemsSource="{Binding RecentFolders}"><ItemsControl.ItemTemplate><DataTemplate>
+       <Button Content="{Binding}" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" HorizontalAlignment="Left" Margin="0,0,0,8" Padding="12,9" />
+      </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+     </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.ColumnSpan="5" Visibility="{Binding IsSettings, Converter={StaticResource BoolVisibility}}" VerticalAlignment="Top" Background="White" BorderBrush="#DFE8E1" BorderThickness="1" CornerRadius="10" Padding="25">
+     <StackPanel><TextBlock Text="归档文件夹" FontSize="18" FontWeight="SemiBold" />
+      <TextBlock Text="只有一个归档根目录。复制、移动和到期设置都围绕这个目录进行。" TextWrapping="Wrap" Foreground="#7B8980" Margin="0,10,0,18" />
+      <Border Background="#F3F7F4" CornerRadius="6" Padding="15"><TextBlock Text="{Binding ArchiveRoot}" TextWrapping="Wrap" MinHeight="20" /></Border>
+      <Button Content="选择 / 更换归档文件夹" Command="{Binding ChooseRootCommand}" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,18,0,0" />
+      <TextBlock Text="更换目录只切换当前归档位置，不会自动搬移旧文件。到期时间在“归档文件”页面设置。" Foreground="#7B8980" TextWrapping="Wrap" Margin="0,14,0,0" />
+     </StackPanel>
     </Border>
-   </Grid>
 
-   <Grid Grid.Row="1" Margin="0,0,0,16">
-    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-    <Grid Visibility="{Binding IsBrowser, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,12" IsEnabled="{Binding IsIdle}">
-     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-     <Button Content="↑" Command="{Binding UpCommand}" ToolTip="上一级目录" Padding="13,6" />
-     <ComboBox x:Name="FolderBox" Grid.Column="1" ItemsSource="{Binding RecentFolders}" IsEditable="True"
-       Text="{Binding CurrentFolder, UpdateSourceTrigger=PropertyChanged}" KeyDown="FolderBox_KeyDown"
-       SelectionChanged="FolderBox_SelectionChanged" ToolTip="输入路径后按 Enter，或选择最近打开的目录" Margin="0,0,10,0" />
-     <Button Grid.Column="2" Content="打开" Command="{Binding NavigateCommand}" CommandParameter="{Binding CurrentFolder}" />
-     <Button Grid.Column="3" Content="选择文件夹" Command="{Binding ChooseSourceCommand}" Margin="0" />
-    </Grid>
-    <Grid Grid.Row="1">
-     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-     <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsIdle}" ToolTip="搜索当前列表中的文件名或路径" MaxWidth="420" HorizontalAlignment="Left" MinWidth="240" />
-     <TextBlock Text="搜索当前列表" Foreground="#8E9B93" IsHitTestVisible="False" VerticalAlignment="Center" Margin="12,0,0,0">
-      <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers>
-       <DataTrigger Binding="{Binding SearchText}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger>
-      </Style.Triggers></Style></TextBlock.Style>
-     </TextBlock>
-     <Button Grid.Column="1" Content="全选 / 取消" Command="{Binding SelectAllCommand}" />
-     <Button Grid.Column="2" Content="刷新  F5" Command="{Binding RefreshCommand}" Margin="0" />
-    </Grid>
-   </Grid>
-
-   <Grid Grid.Row="2">
-    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="20" /><ColumnDefinition Width="296" /></Grid.ColumnDefinitions>
-    <Border Background="White" BorderBrush="#E0E7E2" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
-     <Grid>
-      <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-      <DataGrid x:Name="FilesGrid" ItemsSource="{Binding FilesView}" SelectedItem="{Binding FocusedRow}"
-          MouseDoubleClick="FilesGrid_MouseDoubleClick" SelectionChanged="FilesGrid_SelectionChanged" IsEnabled="{Binding IsIdle}">
-       <DataGrid.Columns>
-        <DataGridTemplateColumn Width="38" CanUserSort="False">
-         <DataGridTemplateColumn.CellTemplate><DataTemplate>
-          <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" Focusable="False" Click="RowCheckBox_Click" />
-         </DataTemplate></DataGridTemplateColumn.CellTemplate>
-        </DataGridTemplateColumn>
-        <DataGridTemplateColumn Header="文件名" Width="*" MinWidth="170" SortMemberPath="Name">
-         <DataGridTemplateColumn.CellTemplate><DataTemplate>
-          <StackPanel Orientation="Horizontal">
-           <TextBlock Text="{Binding Icon}" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#49806A" Margin="0,0,10,0" VerticalAlignment="Center" />
-           <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-          </StackPanel>
-         </DataTemplate></DataGridTemplateColumn.CellTemplate>
-        </DataGridTemplateColumn>
-        <DataGridTextColumn Header="大小" Binding="{Binding SizeText}" SortMemberPath="Size" Width="86" />
-        <DataGridTextColumn Header="修改 / 归档时间" Binding="{Binding ModifiedText}" SortMemberPath="ModifiedAt" Width="145" />
-        <DataGridTextColumn Header="预计删除" Binding="{Binding ExpiryText}" SortMemberPath="Item.ExpiresAt" Width="106" />
-        <DataGridTextColumn Header="状态" Binding="{Binding StatusText}" Width="114" />
-       </DataGrid.Columns>
-      </DataGrid>
-      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-       <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers>
-        <DataTrigger Binding="{Binding FileCount}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
-       </Style.Triggers></Style></StackPanel.Style>
-       <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="34" Foreground="#A4BAAC" HorizontalAlignment="Center" />
-       <TextBlock Text="这里暂时没有文件" Foreground="#7E9084" Margin="0,16,0,0" HorizontalAlignment="Center" />
-       <TextBlock Text="选择文件夹，或调整搜索条件" Foreground="#A0ADA4" Margin="0,7,0,0" FontSize="11" />
-      </StackPanel>
-      <Border Grid.Row="1" BorderBrush="#EDF1EE" BorderThickness="0,1,0,0" Padding="14,10">
-       <Grid>
-        <TextBlock Text="{Binding SelectionText}" Foreground="#7E8D82" FontSize="11" />
-        <TextBlock Text="支持多选 · Ctrl / Shift" HorizontalAlignment="Right" Foreground="#A1ADA5" FontSize="11" />
-       </Grid>
-      </Border>
+    <Border x:Name="ArchiveFolderPane" Grid.Column="0" Visibility="{Binding IsArchive, Converter={StaticResource BoolVisibility}}" Background="White" CornerRadius="9" BorderBrush="#DFE8E1" BorderThickness="1" Padding="12">
+     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <Grid Margin="0,0,0,9"><TextBlock Text="文件夹" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+       <Button Content="新建" Command="{Binding CreateFolderCommand}" HorizontalAlignment="Right" Padding="8,5" Margin="0" /></Grid>
+      <Button Grid.Row="1" x:Name="FolderExpiryButton" Content="设置文件夹到期" Command="{Binding SetFolderExpiryCommand}" Margin="0,0,0,9" Padding="8,7" />
+      <TreeView Grid.Row="2" x:Name="ArchiveFoldersTree" ItemsSource="{Binding ArchiveTree}" ItemTemplate="{StaticResource Folders}" ItemContainerStyle="{StaticResource FolderItem}" SelectedItemChanged="ArchiveTree_SelectedItemChanged" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding IsIdle}" />
+      <TextBlock Grid.Row="3" Text="{Binding FolderExpiryText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding FolderExpiryText}" FontSize="10" Foreground="#829087" Margin="0,8,0,0" />
+      <Button Grid.Row="2" Content="先到设置页选择归档文件夹" Command="{Binding SwitchViewCommand}" CommandParameter="settings" VerticalAlignment="Center" Margin="0" Padding="4,10" FontSize="11">
+       <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding HasRoot}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Button.Style>
+      </Button>
      </Grid>
     </Border>
+    <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" ResizeDirection="Columns" Background="Transparent" Visibility="{Binding IsArchive, Converter={StaticResource BoolVisibility}}" />
 
-    <Border Grid.Column="2" Background="White" BorderBrush="#E0E7E2" BorderThickness="1" CornerRadius="10" Padding="18">
-     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel>
-       <Grid Margin="0,0,0,14">
-        <TextBlock Text="归档位置" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-        <Button Content="选择根目录" Command="{Binding ChooseRootCommand}" HorizontalAlignment="Right" FontSize="11" Padding="8,5" Margin="0" />
-       </Grid>
-       <Border Background="#F5F8F6" CornerRadius="6" Padding="8" MinHeight="110" MaxHeight="225">
-        <TreeView ItemsSource="{Binding TargetTree}" SelectedItemChanged="TargetTree_SelectedItemChanged" Background="Transparent" BorderThickness="0" IsEnabled="{Binding IsIdle}">
-         <TreeView.ItemTemplate><HierarchicalDataTemplate DataType="{x:Type local:FolderNode}" ItemsSource="{Binding Children}">
-          <StackPanel Orientation="Horizontal" Margin="0,5"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" Foreground="#49806A" Margin="0,0,7,0" /><TextBlock Text="{Binding Name}" ToolTip="{Binding Path}" /></StackPanel>
-         </HierarchicalDataTemplate></TreeView.ItemTemplate>
-         <TreeView.ItemContainerStyle><Style TargetType="TreeViewItem">
-          <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" /><Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
-          <EventSetter Event="Expanded" Handler="FolderNode_Expanded" />
-         </Style></TreeView.ItemContainerStyle>
-        </TreeView>
-       </Border>
-       <TextBlock Text="{Binding TargetDisplay}" TextWrapping="Wrap" Foreground="#7E8D82" FontSize="11" Margin="0,10,0,12" />
-       <Grid IsEnabled="{Binding IsIdle}">
-        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-        <TextBox Text="{Binding NewFolderName, UpdateSourceTrigger=PropertyChanged}" ToolTip="子目录名称，支持 工作/项目 A" FontSize="11" Padding="7,7" />
-        <Button Grid.Column="1" Content="新建" Command="{Binding CreateFolderCommand}" Padding="8,7" Margin="6,0,0,0" FontSize="11" />
-       </Grid>
-       <Button Content="刷新目录树" Command="{Binding RefreshTreeCommand}" Padding="0,7" HorizontalAlignment="Left" Foreground="#7D8F81" Background="Transparent" BorderThickness="0" FontSize="11" />
-       <Border Height="1" Background="#EDF1EE" Margin="0,6,0,15" />
-
-       <StackPanel Visibility="{Binding IsBrowser, Converter={StaticResource BoolVisibility}}">
-        <TextBlock Text="归档方式" FontWeight="SemiBold" Margin="0,0,0,8" />
-        <ComboBox ItemsSource="{Binding Modes}" SelectedIndex="{Binding SelectedMode}" IsEnabled="{Binding IsIdle}" />
-        <TextBlock Text="{Binding ModeHint}" FontSize="11" Foreground="#829087" TextWrapping="Wrap" Margin="0,8,0,14" />
-       </StackPanel>
-       <TextBlock Text="预计删除时间" FontWeight="SemiBold" Margin="0,0,0,8" />
-       <ComboBox ItemsSource="{Binding Retentions}" SelectedIndex="{Binding SelectedRetention}" IsEnabled="{Binding IsIdle}" />
-       <DatePicker SelectedDate="{Binding CustomDate}" Visibility="{Binding ShowCustomDate, Converter={StaticResource BoolVisibility}}" Margin="0,8,0,0" IsEnabled="{Binding IsIdle}" />
-       <TextBlock Text="仅用于归档文件；到期后手动确认回收。" FontSize="11" Foreground="#829087" TextWrapping="Wrap" Margin="0,8,0,14" />
-       <TextBlock Text="遇到同名文件" FontWeight="SemiBold" Margin="0,0,0,8" />
-       <ComboBox ItemsSource="{Binding Conflicts}" SelectedIndex="{Binding SelectedConflict}" IsEnabled="{Binding IsIdle}" Margin="0,0,0,16" />
-
-       <Button Content="开始归档" Command="{Binding ArchiveCommand}" Style="{StaticResource PrimaryButton}" Padding="12,11" Margin="0,0,0,8" Visibility="{Binding IsBrowser, Converter={StaticResource BoolVisibility}}" />
-       <StackPanel>
-        <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible" /><Style.Triggers>
-         <DataTrigger Binding="{Binding IsBrowser}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
-        </Style.Triggers></Style></StackPanel.Style>
-        <Button Content="应用预计删除时间" Command="{Binding UpdateExpiryCommand}" Style="{StaticResource PrimaryButton}" Margin="0,0,0,8" />
-        <Button Content="移入回收站" Command="{Binding RecycleCommand}" Foreground="#A45D40" Margin="0,0,0,8" />
-        <Button Content="重试所选失败任务" Command="{Binding RetryCommand}" Margin="0,0,0,8" Visibility="{Binding IsHistory, Converter={StaticResource BoolVisibility}}" />
-       </StackPanel>
-       <Border Height="1" Background="#EDF1EE" Margin="0,12,0,14" />
-       <TextBlock Text="{Binding DetailName}" FontWeight="SemiBold" TextWrapping="Wrap" />
-       <TextBlock Text="{Binding DetailPath}" TextWrapping="Wrap" FontSize="11" Foreground="#829087" Margin="0,7,0,0" />
-       <TextBlock Text="{Binding DetailSource}" TextWrapping="Wrap" FontSize="11" Foreground="#829087" Margin="0,6,0,0" />
-       <TextBlock Text="{Binding DetailExpiry}" TextWrapping="Wrap" FontSize="11" Foreground="#829087" Margin="0,6,0,0" />
-       <TextBlock Text="{Binding DetailError}" TextWrapping="Wrap" FontSize="11" Foreground="#A45D40" Margin="0,6,0,0" />
-       <Button Content="在资源管理器中显示" Command="{Binding RevealCommand}" FontSize="11" Padding="8,6" Margin="0,12,0,0" />
+    <Grid Grid.Column="2" x:Name="FilePane" Visibility="{Binding IsFilePage, Converter={StaticResource BoolVisibility}}">
+     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+     <Grid Visibility="{Binding IsArchive, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,9"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+      <Button Content="↑" Command="{Binding ArchiveUpCommand}" Padding="10,5" /><TextBlock Grid.Column="1" Text="{Binding ArchiveFolder}" TextTrimming="CharacterEllipsis" ToolTip="{Binding ArchiveFolder}" VerticalAlignment="Center" Foreground="#708477" FontSize="11" /></Grid>
+     <Grid Grid.Row="1" Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" MinWidth="104" Margin="0,0,10,0" ToolTip="搜索当前列表的文件名或路径" IsEnabled="{Binding IsIdle}" />
+      <TextBlock Text="搜索当前列表" IsHitTestVisible="False" Foreground="#98A69C" VerticalAlignment="Center" Margin="10,0,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding SearchText}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+      <StackPanel Grid.Column="1" Orientation="Horizontal">
+       <Button x:Name="FileExpiryButton" Content="设置文件到期" Command="{Binding SetFileExpiryCommand}" Visibility="{Binding IsArchive, Converter={StaticResource BoolVisibility}}" Padding="8,7" />
+       <Button Content="回收站" Command="{Binding RecycleCommand}" Visibility="{Binding CanRecycleView, Converter={StaticResource BoolVisibility}}" Padding="8,7" />
+       <Button Content="重试" Command="{Binding RetryCommand}" Visibility="{Binding IsHistory, Converter={StaticResource BoolVisibility}}" Padding="8,7" />
+       <Button Content="全选" Command="{Binding SelectAllCommand}" Padding="8,7" /><Button Content="刷新" Command="{Binding RefreshCommand}" Padding="8,7" />
+       <Button Content="定位" Command="{Binding RevealCommand}" Padding="8,7" Margin="0" />
       </StackPanel>
-     </ScrollViewer>
+     </Grid>
+     <Border Grid.Row="2" Background="White" BorderBrush="#DFE8E1" BorderThickness="1" CornerRadius="9" ClipToBounds="True">
+      <Grid><Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+       <DataGrid x:Name="FilesGrid" ItemsSource="{Binding FilesView}" SelectedItem="{Binding FocusedRow}" SelectionChanged="FilesGrid_SelectionChanged" MouseDoubleClick="FilesGrid_MouseDoubleClick" IsEnabled="{Binding IsIdle}">
+        <DataGrid.Columns>
+         <DataGridTemplateColumn Width="36"><DataGridTemplateColumn.CellTemplate><DataTemplate><CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" Focusable="False" Click="RowCheckBox_Click" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+         <DataGridTemplateColumn Header="文件名" Width="*" MinWidth="150" SortMemberPath="Name"><DataGridTemplateColumn.CellTemplate><DataTemplate>
+          <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="25" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+           <Path Width="18" Height="19" Stretch="Uniform" HorizontalAlignment="Left" Stroke="#49806A" Fill="#EDF5EF"><Path.Style><Style TargetType="Path"><Setter Property="Data" Value="M3,1 L13,1 18,6 18,21 3,21 Z M13,1 L13,6 18,6" /><Style.Triggers><DataTrigger Binding="{Binding IsDirectory}" Value="True"><Setter Property="Data" Value="M1,4 L7,4 9,6 21,6 21,19 1,19 Z" /></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+           <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" /></Grid>
+         </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="大小" Binding="{Binding SizeText}" SortMemberPath="Size" Width="72" />
+         <DataGridTextColumn ElementStyle="{StaticResource CellText}" x:Name="ModifiedColumn" Header="修改时间" Binding="{Binding ModifiedText}" SortMemberPath="ModifiedAt" Width="124" />
+         <DataGridTextColumn ElementStyle="{StaticResource CellText}" x:Name="ExpiryColumn" Header="预计删除" Binding="{Binding ExpiryText}" SortMemberPath="Expiry.ExpiresAt" Width="104" />
+         <DataGridTextColumn ElementStyle="{StaticResource CellText}" x:Name="RuleColumn" Header="到期规则" Binding="{Binding RuleSource}" Width="112" />
+         <DataGridTextColumn ElementStyle="{StaticResource CellText}" x:Name="LocationColumn" Header="文件夹" Binding="{Binding ParentPath}" Width="160" />
+         <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="状态" Binding="{Binding StatusText}" Width="88" />
+         <DataGridTextColumn ElementStyle="{StaticResource CellText}" x:Name="ErrorColumn" Header="结果 / 原因" Binding="{Binding Item.Error}" Width="260" />
+        </DataGrid.Columns>
+       </DataGrid>
+       <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding FileCount}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+        <TextBlock Text="这里暂时没有文件" Foreground="#83978A" FontSize="14" HorizontalAlignment="Center" /><TextBlock Text="选择文件夹，或调整搜索条件" Foreground="#A0ADA4" FontSize="11" Margin="0,9,0,0" /></StackPanel>
+       <Border Grid.Row="1" BorderBrush="#EDF1EE" BorderThickness="0,1,0,0" Padding="12,8"><TextBlock Text="{Binding SelectionText}" Foreground="#819287" FontSize="11" /></Border>
+      </Grid>
+     </Border>
+    </Grid>
+
+    <Border Grid.Column="4" x:Name="TargetPanel" Visibility="{Binding IsBrowser, Converter={StaticResource BoolVisibility}}" Background="White" CornerRadius="9" BorderBrush="#DFE8E1" BorderThickness="1" Padding="13">
+     <Grid x:Name="TargetPanelLayout"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <Grid Margin="0,0,0,13"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <Button x:Name="CopyButton" Content="复制" Command="{Binding CopyCommand}" ToolTip="{Binding TransferHint}" Style="{StaticResource PrimaryButton}" Padding="8,8" />
+       <Button x:Name="MoveButton" Grid.Column="1" Content="移动" Command="{Binding MoveCommand}" ToolTip="{Binding TransferHint}" Padding="8,8" />
+       <Button Grid.Column="2" Content="新建文件夹" Command="{Binding CreateFolderCommand}" Padding="8,8" Margin="0" />
+      </Grid>
+      <StackPanel Grid.Row="1" Margin="0,0,0,8"><TextBlock Text="归档目录" FontSize="14" FontWeight="SemiBold" /><TextBlock Text="{Binding RootName}" Foreground="#7B8980" FontSize="11" Margin="0,5,0,0" ToolTip="{Binding ArchiveRoot}" /></StackPanel>
+      <TreeView Grid.Row="2" x:Name="TargetFoldersTree" ItemsSource="{Binding TargetTree}" ItemTemplate="{StaticResource Folders}" ItemContainerStyle="{StaticResource FolderItem}" SelectedItemChanged="TargetTree_SelectedItemChanged" BorderThickness="0" Background="#F5F8F6" Padding="5" ScrollViewer.HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding IsIdle}" />
+      <Button Grid.Row="2" Content="前往设置，选择归档文件夹" Command="{Binding SwitchViewCommand}" CommandParameter="settings" VerticalAlignment="Center" FontSize="11" Padding="3,10" Margin="0"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding HasRoot}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Button.Style></Button>
+      <TextBlock Grid.Row="3" Text="{Binding TargetDisplay}" TextTrimming="CharacterEllipsis" ToolTip="{Binding TargetDisplay}" Foreground="#7B8980" FontSize="10" Margin="0,10,0,0" />
+     </Grid>
     </Border>
    </Grid>
-
-   <StackPanel Grid.Row="3" Margin="0,14,0,0">
-    <Grid Margin="0,0,0,7" Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}">
-     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-     <StackPanel VerticalAlignment="Center">
-      <TextBlock Text="{Binding ProgressText}" FontSize="11" Foreground="#658373" TextTrimming="CharacterEllipsis" Margin="0,0,0,5" />
-      <ProgressBar Value="{Binding Progress}" Maximum="100" Height="4" BorderThickness="0" Foreground="#147D64" Background="#E0EAE3" />
-     </StackPanel>
-     <Button Grid.Column="1" Content="取消" Command="{Binding CancelCommand}" Margin="14,0,0,0" Padding="12,6" />
-    </Grid>
-    <TextBlock Text="{Binding Status}" FontSize="11" Foreground="#6D8174" TextTrimming="CharacterEllipsis" ToolTip="{Binding Status}" />
-    <Expander Header="最近操作详情" FontSize="11" Foreground="#85978A" Margin="0,8,0,0">
-     <TextBox Text="{Binding ResultDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MaxHeight="90" MinHeight="35" Background="Transparent" BorderThickness="0" />
-    </Expander>
-   </StackPanel>
+   <Border Grid.RowSpan="2" HorizontalAlignment="Right" VerticalAlignment="Top" Background="#E3F0E7" CornerRadius="8" Padding="12,8" MaxWidth="420" Visibility="{Binding HasNotice, Converter={StaticResource BoolVisibility}}">
+    <DockPanel><Button DockPanel.Dock="Right" Content="×" Command="{Binding CloseNoticeCommand}" Background="Transparent" BorderThickness="0" Padding="6,0" Margin="10,0,0,0" />
+     <TextBlock Text="{Binding NoticeText}" Foreground="#34694E" TextWrapping="Wrap" VerticalAlignment="Center" /></DockPanel>
+   </Border>
   </Grid>
  </Grid>
 </Window>

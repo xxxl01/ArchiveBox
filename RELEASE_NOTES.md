@@ -1,28 +1,34 @@
-## .NET Framework 4.8 is now the primary runtime
+## ArchiveBox v0.3.0
 
-ArchiveBox now targets **.NET Framework 4.8**. This is the main application release, not an optional compatibility build. The previous .NET 10 standalone/lite packages have been replaced by one Windows x64 package. **.NET 10 is not required to run this version.**
+The primary runtime remains **.NET Framework 4.8**. .NET 10 is not required. The application UI remains in Chinese.
 
-The deployment target includes **Windows 11 21H2, build 22000**. Windows 11 normally includes .NET Framework 4.8 or a compatible in-place update. The exact build 22000 environment has not been available for direct testing; Windows CI results do not substitute for testing that specific Windows version.
+### Navigation and layout
 
-## Download and run
+- Added Home with persistent quick-folder cards. Use **Add to Home** in the browser, or add a folder from Home.
+- Renamed All Archives to Archive Files.
+- Added Settings as the single place to select or change the one active archive root.
+- Removed the permanent bottom status/details area so file lists use the available height.
+- Removed the outer scrolling destination panel and the inline new-folder/expiry forms.
 
-Download `ArchiveBox-v0.2.0-win-x64.zip`, extract the **entire folder**, and run `ArchiveBox.exe`. Keep the EXE, configuration file, DLLs, and native SQLite library together. Do not reuse DLLs from v0.1.0.
+### Copy and move
 
-`SHA256SUMS.txt` contains the package checksum. The application UI remains in Chinese.
+- The browser destination panel contains only a folder tree and fixed **Copy**, **Move**, and **New Folder** buttons.
+- Select an existing folder in the tree, then click Copy or Move. Both actions show a confirmation dialog with the destination and collision handling before executing.
+- New Folder opens its own dialog; typing a folder name is never required to select an existing destination.
+- Selected directories can be copied or moved with their hierarchy and empty directories preserved. Moving removes source files only after content verification and only removes empty source directories.
 
-## Changes
+### Archive Files and expiry
 
-- Retargeted the WPF desktop application and Windows tests to .NET Framework 4.8.
-- Adapted file copying, hashing, path handling, directory selection, and dependencies for Framework 4.8.
-- Added an explicit startup entry point that captures failures before WPF resources are loaded.
-- Added fatal UI and background exception logging, with a visible error message and log location for managed UI failures.
-- Added `Diagnose-ArchiveBox.cmd` to record the Windows build, Framework release, process output, and exit code when startup fails before application logging starts.
-- Kept the existing archive database format and file locations. No database reset is required.
+- Archive Files now shows the archive root's real contents, including files that were already there before using the app.
+- Folders are on the left and files are on the right. The unrelated destination panel is removed from this page.
+- Set expiry for a selected folder using its folder action, or for selected files using the file toolbar.
+- The nearest ancestor folder rule applies to descendants and newly archived files. A file-specific expiry overrides that rule; an explicit no-expiry setting also overrides it. Clear the override to restore inheritance.
+- Expiring Soon and Expired evaluate the effective rules. Expiry remains a reminder; recycling still requires confirmation.
 
-## Validation and limitations
+### Upgrade and validation
 
-The release workflow runs the core tests under the .NET Framework test host and checks packaged WPF startup, a nonempty directory, refresh, and view switching on Windows Server 2022. The regular build also checks Windows Server 2025. Neither runner is Windows 11 21H2.
+Extract `ArchiveBox-v0.3.0-win-x64.zip` into a new application folder and run `ArchiveBox.exe`. Existing archive files and the database remain in their previous locations. The database update adds favorites and expiry rules without resetting existing records; existing explicit expiry dates are migrated.
 
-If the application still exits on your computer, run `Diagnose-ArchiveBox.cmd` and share the generated `launch-*.log` and `error-*.log` from `%LocalAppData%\ArchiveBox` (or `%TEMP%\ArchiveBox` if the normal log directory is unavailable).
+Windows CI runs the core tests and interaction checks for Home persistence, confirmation cancellation, copy/move, directory copy, new folders, existing archive files, expiry inheritance/overrides, and small-window button visibility. It also renders Home, Browser, Archive Files and Settings screenshots for review. The exact Windows 11 21H2 build 22000 environment is not available in CI.
 
-Expiry remains a reminder only. Files are recycled only after confirmation, and copied source files are unaffected by archive expiry.
+If startup fails, use `Diagnose-ArchiveBox.cmd` and share the resulting logs. `SHA256SUMS.txt` contains the package checksum.

@@ -19,7 +19,7 @@
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
     <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
        BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}">
-     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+     <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
     </Border>
     <ControlTemplate.Triggers>
      <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.8" /></Trigger>
@@ -43,6 +43,10 @@
   <Style TargetType="ComboBox">
    <Setter Property="Padding" Value="8,7" /><Setter Property="MinHeight" Value="34" />
    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style x:Key="CellText" TargetType="TextBlock">
+   <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+   <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
   </Style>
   <Style TargetType="DataGrid">
    <Setter Property="AutoGenerateColumns" Value="False" /><Setter Property="IsReadOnly" Value="True" />

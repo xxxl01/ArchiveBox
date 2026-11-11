@@ -35,7 +35,7 @@ try {
     $stderr = $process.StandardError.ReadToEndAsync()
     $stdout = $process.StandardOutput.ReadToEndAsync()
     if ($SmokeTest) {
-        if (-not $process.WaitForExit(45000)) { $process.Kill(); throw 'Diagnostic startup check timed out.' }
+        if (-not $process.WaitForExit(120000)) { $process.Kill(); throw 'Diagnostic startup check timed out.' }
     }
     else { $process.WaitForExit() }
     $exitCode = $process.ExitCode

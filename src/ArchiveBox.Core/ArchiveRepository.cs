@@ -21,7 +21,17 @@ public sealed class ArchiveRepository
               source_path TEXT NOT NULL, mode TEXT NOT NULL, archived_at TEXT NOT NULL,
               expires_at TEXT, state TEXT NOT NULL, size INTEGER NOT NULL, sha256 TEXT, error TEXT);
             CREATE INDEX IF NOT EXISTS ix_items_expiry ON archive_items(state, expires_at);
-            PRAGMA user_version=1;
+            CREATE TABLE IF NOT EXISTS favorite_folders (path TEXT PRIMARY KEY COLLATE NOCASE, added_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS expiry_rules (
+              root_path TEXT NOT NULL COLLATE NOCASE, relative_path TEXT NOT NULL COLLATE NOCASE,
+              is_directory INTEGER NOT NULL, expires_at TEXT,
+              PRIMARY KEY(root_path,relative_path,is_directory));
+            INSERT OR IGNORE INTO expiry_rules(root_path,relative_path,is_directory,expires_at)
+              SELECT root_path,relative_path,0,expires_at FROM archive_items
+              WHERE expires_at IS NOT NULL AND state IN ('Ready','SourceRetained')
+                AND NOT EXISTS(SELECT 1 FROM settings WHERE key='expiryRulesMigrated') ORDER BY archived_at DESC;
+            INSERT OR IGNORE INTO settings VALUES('expiryRulesMigrated','1');
+            PRAGMA user_version=2;
             """;
         command.ExecuteNonQuery();
     }
@@ -134,6 +144,80 @@ public sealed class ArchiveRepository
             command.ExecuteNonQuery();
         }
         transaction.Commit();
+        foreach (var id in ids)
+        {
+            var item = Get(id);
+            SetRule(item.RootPath, item.RelativePath, false, expiresAt);
+        }
+    }
+
+    public IReadOnlyList<FavoriteFolder> GetFavorites()
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT path FROM favorite_folders ORDER BY added_at";
+        using var reader = command.ExecuteReader();
+        var result = new List<FavoriteFolder>();
+        while (reader.Read())
+        {
+            var path = reader.GetString(0);
+            var name = Path.GetFileName(PathSafety.Normalize(path));
+            result.Add(new(path, string.IsNullOrEmpty(name) ? path : name));
+        }
+        return result;
+    }
+
+    public void SetFavorite(string path, bool favorite)
+    {
+        path = PathSafety.Normalize(path);
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = favorite ? "INSERT OR IGNORE INTO favorite_folders VALUES($path,$time)" : "DELETE FROM favorite_folders WHERE path=$path";
+        command.Parameters.AddWithValue("$path", path);
+        if (favorite) command.Parameters.AddWithValue("$time", DateTimeOffset.UtcNow.ToString("O"));
+        command.ExecuteNonQuery();
+    }
+
+    public ExpiryRules GetRules()
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT root_path,relative_path,is_directory,expires_at FROM expiry_rules";
+        using var reader = command.ExecuteReader();
+        var rules = new List<ExpiryRule>();
+        while (reader.Read()) rules.Add(new(reader.GetString(0), reader.GetString(1), reader.GetInt32(2) != 0,
+            reader.IsDBNull(3) ? null : Parse(reader.GetString(3))));
+        return new(rules);
+    }
+
+    public void SetRule(string root, string relative, bool directory, DateTimeOffset? expiry)
+    {
+        root = PathSafety.Normalize(root);
+        relative = PathSafety.RelativePath(root, PathSafety.Resolve(root, relative));
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO expiry_rules VALUES($root,$relative,$directory,$expiry)
+            ON CONFLICT(root_path,relative_path,is_directory) DO UPDATE SET expires_at=excluded.expires_at;
+            """;
+        command.Parameters.AddWithValue("$root", root);
+        command.Parameters.AddWithValue("$relative", relative);
+        command.Parameters.AddWithValue("$directory", directory ? 1 : 0);
+        command.Parameters.AddWithValue("$expiry", (object?)expiry?.ToUniversalTime().ToString("O") ?? DBNull.Value);
+        command.ExecuteNonQuery();
+    }
+
+    public void RemoveRule(string root, string relative, bool directory)
+    {
+        root = PathSafety.Normalize(root);
+        relative = PathSafety.RelativePath(root, PathSafety.Resolve(root, relative));
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM expiry_rules WHERE root_path=$root AND relative_path=$relative AND is_directory=$directory";
+        command.Parameters.AddWithValue("$root", root);
+        command.Parameters.AddWithValue("$relative", relative);
+        command.Parameters.AddWithValue("$directory", directory ? 1 : 0);
+        command.ExecuteNonQuery();
     }
 
     private static DateTimeOffset Parse(string text) => DateTimeOffset.Parse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
