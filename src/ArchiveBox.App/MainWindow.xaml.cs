@@ -23,6 +23,15 @@ public partial class MainWindow : Window
     {
         await ViewModel.InitializeAsync();
         if (!App.IsSmokeTest) return;
+        // Exercise a nonempty directory and view changes using isolated fixture files.
+        var fixture = Path.Combine(App.DataFolder, "fixture");
+        Directory.CreateDirectory(Path.Combine(fixture, "subfolder"));
+        File.WriteAllText(Path.Combine(fixture, "sample.txt"), "ArchiveBox smoke fixture");
+        await ViewModel.NavigateCommand.ExecuteAsync(fixture);
+        await ViewModel.RefreshCommand.ExecuteAsync(null);
+        foreach (var view in new[] { "all", "soon", "due", "history", "browse" })
+            await ViewModel.SwitchViewCommand.ExecuteAsync(view);
+        if (ViewModel.Rows.Count != 2) App.SmokeFailed = true;
         // Initialization is asynchronous. Close only after it finishes and WPF has
         // processed layout, instead of racing the normal busy-operation close guard.
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);

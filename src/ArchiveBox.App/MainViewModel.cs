@@ -279,11 +279,10 @@ public partial class MainViewModel : ObservableObject
 
     private void ReplaceRows(IEnumerable<FileRow> rows)
     {
-        using (FilesView.DeferRefresh())
-        {
-            Rows.Clear();
-            foreach (var row in rows) Rows.Add(row);
-        }
+        // DeferRefresh is for view settings (filter/sort), not source mutations:
+        // WPF needs a valid current position while processing these notifications.
+        Rows.Clear();
+        foreach (var row in rows) Rows.Add(row);
         FileCount = FilesView.Cast<FileRow>().Count();
         FocusedRow = null;
         SelectionChanged();
