@@ -66,6 +66,7 @@ internal static class UiRegression
         Check(File.Exists(Path.Combine(archive, "项目文件夹", "子文件夹", "资料.txt")), "Folder copy must preserve hierarchy.");
         dialogs.NextName = "新建分类/年度资料"; await vm.CreateFolderCommand.ExecuteAsync(null);
         Check(Directory.Exists(vm.TargetFolder), "New-folder dialog must create and select the destination.");
+        Select(vm, "项目文件夹");
         await Capture(window, "browse-1360.png", 1360, 860);
         await Capture(window, "browse-1080.png", 1080, 640);
         var right = (FrameworkElement)window.FindName("TargetPanel");
@@ -73,6 +74,7 @@ internal static class UiRegression
         var move = (FrameworkElement)window.FindName("MoveButton");
         Check(VisibleInside(copy, right) && VisibleInside(move, right), "Copy and move buttons must be visible without scrolling.");
         var tree = (FrameworkElement)window.FindName("TargetFoldersTree");
+        Check(VisualChildren<TreeViewItem>(tree).Any(item => item.IsSelected && VisibleInside(item, tree)), "The chosen target must be brought into the visible tree viewport.");
         for (DependencyObject? parent = VisualTreeHelper.GetParent(tree); parent is not null && parent != right; parent = VisualTreeHelper.GetParent(parent))
             Check(parent is not ScrollViewer, "Destination tree must not have an outer scrolling panel.");
         await vm.SwitchViewCommand.ExecuteAsync("all");
@@ -95,6 +97,11 @@ internal static class UiRegression
     }
     private static void Select(MainViewModel vm, string name)
     { foreach (var row in vm.Rows) row.IsSelected = row.Name == name; vm.SelectionChanged(); }
+    private static IEnumerable<T> VisualChildren<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        { var child = VisualTreeHelper.GetChild(root, i); if (child is T match) yield return match; foreach (var descendant in VisualChildren<T>(child)) yield return descendant; }
+    }
     private static bool VisibleInside(FrameworkElement child, FrameworkElement parent)
     {
         var point = child.TranslatePoint(new Point(), parent);

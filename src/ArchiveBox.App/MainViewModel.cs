@@ -268,7 +268,7 @@ public partial class MainViewModel : ObservableObject
         return node;
     }
     public void SelectTarget(FolderNode node)
-    { if (node.Path.Length == 0 || IsBusy) return; _targetNode = node; TargetFolder = node.Path; _repository.SetSetting("lastTargetFolder", TargetFolder); }
+    { if (node.Path.Length == 0 || IsBusy) return; _targetNode = node; TargetFolder = node.Path; }
     public Task SelectArchiveFolderAsync(FolderNode node) => RunAsync(async () =>
     { if (node.Path.Length == 0) return; _archiveNode = node; ArchiveFolder = node.Path; OnPropertyChanged(nameof(FolderExpiryText)); await RefreshCoreAsync(); });
     private async Task SelectArchivePathCoreAsync(string path)
@@ -347,7 +347,7 @@ public partial class MainViewModel : ObservableObject
     { foreach (var name in new[] { nameof(IsHome), nameof(IsBrowser), nameof(IsArchive), nameof(IsHistory), nameof(IsSettings), nameof(IsFilePage), nameof(CanRecycleView) }) OnPropertyChanged(name); NotifyCommands(); }
     partial void OnArchiveRootChanged(string value) { OnPropertyChanged(nameof(HasRoot)); OnPropertyChanged(nameof(RootName)); NotifyCommands(); }
     partial void OnArchiveFolderChanged(string value) => NotifyCommands();
-    partial void OnTargetFolderChanged(string value) { OnPropertyChanged(nameof(TargetDisplay)); OnPropertyChanged(nameof(TransferHint)); NotifyCommands(); }
+    partial void OnTargetFolderChanged(string value) { if (value.Length > 0) _repository.SetSetting("lastTargetFolder", value); OnPropertyChanged(nameof(TargetDisplay)); OnPropertyChanged(nameof(TransferHint)); NotifyCommands(); }
     partial void OnFileCountChanged(int value) => OnPropertyChanged(nameof(SelectionText));
     partial void OnFocusedRowChanged(FileRow? value) => NotifyCommands();
     partial void OnNoticeTextChanged(string value) => OnPropertyChanged(nameof(HasNotice));

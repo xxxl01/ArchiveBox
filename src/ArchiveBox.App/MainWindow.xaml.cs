@@ -86,4 +86,10 @@ public partial class MainWindow : Window
         try { await node.LoadAsync(); } catch (Exception error) { if (DataContext is MainViewModel vm) vm.ReportError(error); }
         e.Handled = true;
     }
+    private void FolderNode_Selected(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is not TreeViewItem item) return;
+        item.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => item.BringIntoView()));
+        e.Handled = true;
+    }
 }

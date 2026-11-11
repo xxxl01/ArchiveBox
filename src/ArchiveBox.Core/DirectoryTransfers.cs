@@ -33,26 +33,35 @@ public sealed partial class ArchiveService
                     if (conflict == ConflictPolicy.Skip) { results.Add(new(path, null, false, true, "已有同名文件夹。")); continue; }
                     destination = FindAvailableName(destination);
                 }
-                var directories = new List<string> { path };
-                var files = new List<string>();
-                for (var i = 0; i < directories.Count; i++)
+                var plan = await Task.Run(() =>
                 {
-                    token.ThrowIfCancellationRequested();
-                    PathSafety.RejectLinks(directories[i]);
-                    foreach (var child in Directory.EnumerateFileSystemEntries(directories[i]))
+                    var scannedDirectories = new List<string> { path };
+                    var scannedFiles = new List<string>();
+                    for (var i = 0; i < scannedDirectories.Count; i++)
                     {
-                        PathSafety.RejectLinks(child);
-                        if (Directory.Exists(child)) directories.Add(child); else files.Add(child);
+                        token.ThrowIfCancellationRequested();
+                        PathSafety.RejectLinks(scannedDirectories[i]);
+                        foreach (var child in Directory.EnumerateFileSystemEntries(scannedDirectories[i]))
+                        {
+                            PathSafety.RejectLinks(child);
+                            if (Directory.Exists(child)) scannedDirectories.Add(child); else scannedFiles.Add(child);
+                        }
                     }
-                }
-                foreach (var folder in directories)
+                    return Tuple.Create(scannedDirectories, scannedFiles);
+                }, token);
+                var directories = plan.Item1;
+                var files = plan.Item2;
+                await Task.Run(() =>
                 {
-                    token.ThrowIfCancellationRequested();
-                    var child = PathSafety.Resolve(root, PathSafety.RelativePath(root,
-                        Path.Combine(destination, PathSafety.RelativePath(path, folder))));
-                    PathSafety.RejectLinks(child);
-                    Directory.CreateDirectory(child);
-                }
+                    foreach (var folder in directories)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        var child = PathSafety.Resolve(root, PathSafety.RelativePath(root,
+                            Path.Combine(destination, PathSafety.RelativePath(path, folder))));
+                        PathSafety.RejectLinks(child);
+                        Directory.CreateDirectory(child);
+                    }
+                }, token);
                 var completed = new List<TransferResult>();
                 foreach (var file in files)
                 {
