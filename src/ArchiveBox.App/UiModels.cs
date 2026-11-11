@@ -26,7 +26,7 @@ public partial class FileRow : ObservableObject
     public string RuleSource => Expiry?.SourceText ?? "—";
     public string StatusText => InArchive && Item is null ? Expiry?.ExpiresAt <= DateTimeOffset.UtcNow ? "已到期" : "已归档" : Item is null ? IsDirectory ? "文件夹" : "文件" : Item.State switch
     {
-        ItemState.Ready => !Exists ? "文件不可用" : (Expiry?.ExpiresAt ?? Item.ExpiresAt) <= DateTimeOffset.UtcNow ? "已到期" : "已归档",
+        ItemState.Ready => !InArchive ? "归档完成" : !Exists ? "文件不可用" : (Expiry?.ExpiresAt ?? Item.ExpiresAt) <= DateTimeOffset.UtcNow ? "已到期" : "已归档",
         ItemState.SourceRetained => "源文件保留",
         ItemState.Failed => "失败 / 已取消",
         ItemState.Pending or ItemState.Verified => "待恢复",
@@ -34,7 +34,6 @@ public partial class FileRow : ObservableObject
         ItemState.Recycled => "已移入回收站",
         _ => "未知"
     };
-    public string Tooltip => $"{Path}\n{Item?.Error ?? StatusText}";
     public string ParentPath => System.IO.Path.GetDirectoryName(Path) ?? Path;
     public string SourceText => Item?.SourcePath ?? Path;
 
@@ -44,7 +43,7 @@ public partial class FileRow : ObservableObject
     public static FileRow FromItem(ArchiveItem item) => new()
     {
         Path = item.FullPath, Name = item.Name, Item = item, Size = item.Size,
-        ModifiedAt = item.ArchivedAt.LocalDateTime, Exists = File.Exists(item.FullPath)
+        ModifiedAt = item.ArchivedAt.LocalDateTime, Exists = true
     };
 
     public static FileRow FromArchive(DirectoryEntry entry, ArchiveItem? item, ExpiryDecision expiry) => new()

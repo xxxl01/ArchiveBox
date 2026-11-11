@@ -83,7 +83,7 @@ public static class PathSafety
             .OrderByDescending(f => f.IsDirectory).ThenBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 
-    private static bool IsManagedTemporaryName(string name)
+    internal static bool IsManagedTemporaryName(string name)
     {
         const string prefix = ".archivebox-";
         const string suffix = ".partial";

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Data;
+using System.Windows.Threading;
 using ArchiveBox.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -15,6 +16,14 @@ public partial class MainViewModel : ObservableObject
     private readonly IUserDialogs _dialogs;
     private readonly List<IRelayCommand> _commands = [];
     private CancellationTokenSource? _cancellation;
+    private CancellationTokenSource? _expiryCancellation;
+    private int _expiryVersion;
+    private readonly SemaphoreSlim _expiryGate = new(1, 1);
+    private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
+    private Task _expiryLoadTask = Task.CompletedTask;
+    internal Func<ExpiryRules, ExpiryScanner> ScannerFactory { get; set; } = rules => new ExpiryScanner(rules);
+    internal Task ExpiryLoadTask => _expiryLoadTask;
+    private Dictionary<string, ArchiveItem> _itemIndex = new(StringComparer.OrdinalIgnoreCase);
     private string _loadedFolder = "";
     private FolderNode? _targetNode;
     private FolderNode? _archiveNode;
@@ -39,11 +48,16 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _progressText = "";
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private int _selectedCount;
     [ObservableProperty] private int _fileCount;
     [ObservableProperty] private FileRow? _focusedRow;
 
     public bool IsIdle => !IsBusy;
+    public bool IsWorking => IsBusy || IsLoading;
+    public bool CanSort => !IsLoading;
+    public bool IsEmpty => FileCount == 0 && !IsWorking;
+    public string HeaderDescription => NoticeText.Length > 0 ? NoticeText : PageSubtitle;
     public bool IsHome => CurrentView == "home";
     public bool IsBrowser => CurrentView == "browse";
     public bool IsArchive => CurrentView == "all";
@@ -58,7 +72,7 @@ public partial class MainViewModel : ObservableObject
     public string TargetDisplay => TargetFolder.Length == 0 ? "选择归档目录后，点击树中的目标文件夹" : TargetFolder;
     public string FavoriteButtonText => IsCurrentFavorite ? "已在首页" : "添加到首页";
     public bool IsCurrentFavorite => Favorites.Any(f => Same(f.Path, _loadedFolder));
-    public string SelectionText => $"{FileCount} 项 · 已选 {SelectedCount} 项";
+    public string SelectionText => $"{FileCount} 项 · 已选 {SelectedCount} 项" + (IsLoading ? " · 扫描中" : "");
     public string TransferHint => !HasRoot ? "先设置唯一的归档根目录" : SelectedCount == 0 ? "先在文件列表中选择文件或文件夹" : "目标：" + TargetDisplay;
     public string FolderExpiryText => _archiveNode?.PolicyDescription ?? "选择文件夹后设置到期时间";
 
@@ -83,7 +97,6 @@ public partial class MainViewModel : ObservableObject
     public IRelayCommand RevealCommand { get; }
     public IRelayCommand OpenDataCommand { get; }
     public IRelayCommand SelectAllCommand { get; }
-    public IRelayCommand CloseNoticeCommand { get; }
 
     public MainViewModel(IUserDialogs? dialogs = null)
     {
@@ -122,12 +135,11 @@ public partial class MainViewModel : ObservableObject
         { var path = _dialogs.PickFolder("添加快速文件夹到首页", _loadedFolder); if (path is not null) AddFavorite(path); return Task.CompletedTask; }), () => IsIdle));
         AddCurrentToHomeCommand = Add(new RelayCommand(() => Safe(() => AddFavorite(_loadedFolder)), () => IsIdle && IsBrowser && _loadedFolder.Length > 0 && !IsCurrentFavorite));
         RemoveFavoriteCommand = Add(new RelayCommand<string>(p => Safe(() => { if (p is not null) { _repository.SetFavorite(p, false); ReloadFavorites(); } }), _ => IsIdle));
-        CancelCommand = Add(new RelayCommand(() => _cancellation?.Cancel(), () => IsBusy));
+        CancelCommand = Add(new RelayCommand(() => { if (IsLoading) CancelExpiryLoad(true); if (IsBusy) _cancellation?.Cancel(); }, () => IsWorking));
         RevealCommand = Add(new RelayCommand(() => Safe(() => WindowsServices.Reveal(FocusedRow!.Path)), () => IsIdle && FocusedRow is not null));
         OpenDataCommand = Add(new RelayCommand(() => Safe(() => WindowsServices.Open(App.DataFolder)), () => IsIdle));
         SelectAllCommand = Add(new RelayCommand(() =>
         { var visible = FilesView.Cast<FileRow>().ToArray(); var select = visible.Any(r => !r.IsSelected); foreach (var row in visible) row.IsSelected = select; SelectionChanged(); }, () => IsIdle && Rows.Count > 0));
-        CloseNoticeCommand = Add(new RelayCommand(() => NoticeText = ""));
     }
     private T Add<T>(T command) where T : IRelayCommand { _commands.Add(command); return command; }
     private void NotifyCommands() { foreach (var command in _commands) command.NotifyCanExecuteChanged(); }
@@ -140,11 +152,12 @@ public partial class MainViewModel : ObservableObject
     private async Task RunAsync(Func<Task> action)
     {
         if (IsBusy) return;
+        CancelExpiryLoad(false);
         IsBusy = true; _cancellation = new(); Progress = 0; ProgressText = "正在处理…";
         try { await action(); }
         catch (OperationCanceledException) { NoticeText = "已取消；已完成的项目保留。"; await RefreshAfterFailureAsync(); }
         catch (Exception error) { ReportError(error); await RefreshAfterFailureAsync(); }
-        finally { _cancellation.Dispose(); _cancellation = null; IsBusy = false; ProgressText = ""; }
+        finally { _cancellation.Dispose(); _cancellation = null; IsBusy = false; if (!IsLoading) ProgressText = ""; }
     }
     private async Task RefreshAfterFailureAsync() { try { await RefreshCoreAsync(); } catch (Exception e) { App.WriteLog(e); } }
 
@@ -156,7 +169,7 @@ public partial class MainViewModel : ObservableObject
         ArchiveRoot = _repository.GetSetting("archiveRoot") ?? "";
         ArchiveFolder = ArchiveRoot;
         TargetFolder = _repository.GetSetting("lastTargetFolder") ?? ArchiveRoot;
-        ReloadMetadata(); ReloadFavorites(); ReloadRecents();
+        await ReloadMetadataAsync(); ReloadFavorites(); ReloadRecents();
         if (HasRoot) await BuildTreesAsync();
         SetView("home"); await RefreshCoreAsync();
     });
@@ -174,7 +187,20 @@ public partial class MainViewModel : ObservableObject
             _ => ("浏览文件", "选择文件或文件夹，再选择右侧目标，点击复制或移动。")
         };
     }
-    private void ReloadMetadata() { _items = _repository.GetItems(); _rules = _repository.GetRules(); }
+    private static Dictionary<string, ArchiveItem> IndexItems(IEnumerable<ArchiveItem> items, string root)
+    {
+        var index = new Dictionary<string, ArchiveItem>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+            if (item.IsAvailable && Same(item.RootPath, root) && !index.ContainsKey(item.FullPath)) index[item.FullPath] = item;
+        return index;
+    }
+    private async Task ReloadMetadataAsync()
+    {
+        var root = ArchiveRoot;
+        var snapshot = await Task.Run(() =>
+        { var items = _repository.GetItems(); return Tuple.Create(items, _repository.GetRules(), IndexItems(items, root)); });
+        _items = snapshot.Item1; _rules = snapshot.Item2; _itemIndex = snapshot.Item3;
+    }
     private void ReloadFavorites()
     { Favorites.Clear(); foreach (var folder in _repository.GetFavorites()) Favorites.Add(folder); OnPropertyChanged(nameof(HasFavorites)); FavoriteChanged(); }
     private void FavoriteChanged() { OnPropertyChanged(nameof(IsCurrentFavorite)); OnPropertyChanged(nameof(FavoriteButtonText)); NotifyCommands(); }
@@ -190,48 +216,101 @@ public partial class MainViewModel : ObservableObject
     }
     private async Task RefreshCoreAsync()
     {
-        ReloadMetadata();
         if (IsHome || IsSettings) { ReloadFavorites(); ReloadRecents(); ReplaceRows([]); return; }
         if (IsBrowser)
         {
             if (string.IsNullOrEmpty(_loadedFolder)) { ReplaceRows([]); return; }
             ReplaceRows((await Task.Run(() => PathSafety.List(_loadedFolder))).Select(FileRow.FromEntry)); return;
         }
-        if (IsHistory) { ReplaceRows(await Task.Run(() => _items.Select(FileRow.FromItem).ToArray())); return; }
-        if (!HasRoot || !Directory.Exists(ArchiveRoot)) { ReplaceRows([]); return; }
-        if (IsArchive)
-        {
-            if (!Directory.Exists(ArchiveFolder)) ArchiveFolder = ArchiveRoot;
-            var entries = await Task.Run(() => PathSafety.List(ArchiveFolder));
-            ReplaceRows(entries.Where(e => !e.IsDirectory).Select(ArchiveRow));
-            foreach (var node in ArchiveTree) node.RefreshPolicy(); return;
-        }
-        var now = DateTimeOffset.UtcNow;
-        var rows = await Task.Run(() =>
-        {
-            var result = new List<FileRow>(); var folders = new Queue<string>(); folders.Enqueue(ArchiveRoot);
-            while (folders.Count > 0)
-            {
-                _cancellation!.Token.ThrowIfCancellationRequested();
-                var folder = folders.Dequeue();
-                try
-                {
-                    foreach (var entry in PathSafety.List(folder))
-                    {
-                        if (entry.IsDirectory) { folders.Enqueue(entry.Path); continue; }
-                        var row = ArchiveRow(entry); var expiry = row.Expiry?.ExpiresAt;
-                        if (expiry.HasValue && (CurrentView == "due" ? expiry <= now : expiry > now && expiry <= now.AddDays(7))) result.Add(row);
-                    }
-                }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { App.WriteLog(e); }
-            }
-            return result;
-        });
-        ReplaceRows(rows.OrderBy(r => r.Expiry?.ExpiresAt));
+        if (IsHistory)
+        { _items = await Task.Run(() => _repository.GetItems()); ReplaceRows(_items.Select(FileRow.FromItem)); return; }
+        if (CurrentView is "due" or "soon") { BeginExpiryLoad(); return; }
+        await ReloadMetadataAsync();
+        if (!HasRoot || !await Task.Run(() => Directory.Exists(ArchiveRoot))) { ReplaceRows([]); return; }
+        if (!await Task.Run(() => Directory.Exists(ArchiveFolder))) ArchiveFolder = ArchiveRoot;
+        var entries = await Task.Run(() => PathSafety.List(ArchiveFolder));
+        ReplaceRows(entries.Where(e => !e.IsDirectory).Select(ArchiveRow));
+        foreach (var node in ArchiveTree) node.RefreshPolicy();
     }
+    private void CancelExpiryLoad(bool showMessage)
+    {
+        _expiryVersion++;
+        var previous = _expiryCancellation;
+        _expiryCancellation = null;
+        previous?.Cancel();
+        if (IsLoading)
+        {
+            IsLoading = false; ProgressText = "";
+            if (showMessage) NoticeText = "已停止扫描，保留当前已找到的结果。";
+        }
+    }
+    private void BeginExpiryLoad()
+    {
+        CancelExpiryLoad(false); ReplaceRows([]);
+        FilesView.SortDescriptions.Clear();
+        if (!HasRoot) return;
+        var cancellation = new CancellationTokenSource(); _expiryCancellation = cancellation;
+        var version = _expiryVersion; var root = ArchiveRoot; var view = CurrentView;
+        IsLoading = true; ProgressText = "正在读取到期规则…";
+        _expiryLoadTask = LoadExpiryAsync(root, view, version, cancellation);
+    }
+    private async Task LoadExpiryAsync(string root, string view, int version, CancellationTokenSource cancellation)
+    {
+        var token = cancellation.Token; var entered = false;
+        bool Current() => version == _expiryVersion && Same(root, ArchiveRoot) && view == CurrentView;
+        void UpdateUi(Action update)
+        {
+            if (token.IsCancellationRequested || _dispatcher.HasShutdownStarted) return;
+            // Small, low-priority batches provide back pressure without starving input/rendering.
+            _dispatcher.Invoke(DispatcherPriority.Background, new Action(() => { if (Current()) update(); }));
+        }
+        try
+        {
+            if (!_expiryGate.Wait(0))
+            { ProgressText = "等待上一次目录读取结束，可随时取消或切换页面。"; await _expiryGate.WaitAsync(token); }
+            entered = true;
+            var now = DateTimeOffset.UtcNow;
+            var result = await Task.Run(() =>
+            {
+                token.ThrowIfCancellationRequested();
+                var rules = _repository.GetRules();
+                var hasScopes = rules.ForRoot(root).Any(r => r.ExpiresAt.HasValue &&
+                    (view == "due" ? r.ExpiresAt <= now : r.ExpiresAt > now && r.ExpiresAt <= now.AddDays(7)));
+                var index = hasScopes ? IndexItems(_repository.GetItems(), root) : new Dictionary<string, ArchiveItem>(StringComparer.OrdinalIgnoreCase);
+                return ScannerFactory(rules).Scan(root, view == "due", now,
+                    batch => UpdateUi(() =>
+                    {
+                        var visible = 0;
+                        foreach (var match in batch)
+                        {
+                            index.TryGetValue(match.Entry.Path, out var item);
+                            var row = FileRow.FromArchive(match.Entry, item, match.Expiry);
+                            Rows.Add(row);
+                            if (string.IsNullOrWhiteSpace(SearchText) || row.Name.IndexOf(SearchText, StringComparison.CurrentCultureIgnoreCase) >= 0 || row.Path.IndexOf(SearchText, StringComparison.CurrentCultureIgnoreCase) >= 0) visible++;
+                        }
+                        FileCount += visible;
+                    }),
+                    progress => UpdateUi(() => ProgressText = $"已检查 {progress.Folders} 个文件夹、{progress.Files} 个文件 · 找到 {progress.Matches} 项" + (progress.Skipped > 0 ? $" · 跳过 {progress.Skipped} 处不可访问位置" : "")), token);
+            }, token);
+            if (Current())
+            {
+                FileCount = FilesView.Cast<FileRow>().Count();
+                if (result.Skipped > 0) NoticeText = $"扫描完成；有 {result.Skipped} 处位置不可访问，未计入结果。";
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { if (Current()) ReportError(error); }
+        finally
+        {
+            if (entered) _expiryGate.Release();
+            if (Current()) { _expiryCancellation = null; IsLoading = false; ProgressText = ""; }
+            cancellation.Dispose();
+        }
+    }
+    internal void CancelReadLoading() => CancelExpiryLoad(false);
     private FileRow ArchiveRow(DirectoryEntry entry)
     {
-        var item = _items.FirstOrDefault(i => i.IsAvailable && Same(i.FullPath, entry.Path));
+        _itemIndex.TryGetValue(entry.Path, out var item);
         return FileRow.FromArchive(entry, item, _rules.Resolve(ArchiveRoot, PathSafety.RelativePath(ArchiveRoot, entry.Path)));
     }
     private void ReplaceRows(IEnumerable<FileRow> rows)
@@ -248,7 +327,7 @@ public partial class MainViewModel : ObservableObject
     private async Task BuildTreesAsync()
     {
         TargetTree.Clear(); ArchiveTree.Clear(); _targetNode = null; _archiveNode = null;
-        if (!HasRoot || !Directory.Exists(ArchiveRoot)) { TargetFolder = ""; return; }
+        if (!HasRoot || !await Task.Run(() => Directory.Exists(ArchiveRoot))) { TargetFolder = ""; return; }
         var target = new FolderNode(ArchiveRoot); var archive = new FolderNode(ArchiveRoot, policy: FolderPolicy);
         TargetTree.Add(target); ArchiveTree.Add(archive);
         await target.LoadAsync(); await archive.LoadAsync(); target.IsExpanded = true; archive.IsExpanded = true;
@@ -342,13 +421,15 @@ public partial class MainViewModel : ObservableObject
     { SelectedCount = SelectedRows().Length; OnPropertyChanged(nameof(SelectionText)); OnPropertyChanged(nameof(TransferHint)); NotifyCommands(); }
     partial void OnSearchTextChanged(string value)
     { foreach (var row in Rows) row.IsSelected = false; FilesView.Refresh(); FileCount = FilesView.Cast<FileRow>().Count(); SelectionChanged(); }
-    partial void OnIsBusyChanged(bool value) { OnPropertyChanged(nameof(IsIdle)); NotifyCommands(); }
+    partial void OnIsBusyChanged(bool value) { OnPropertyChanged(nameof(IsIdle)); OnPropertyChanged(nameof(IsWorking)); OnPropertyChanged(nameof(IsEmpty)); NotifyCommands(); }
+    partial void OnIsLoadingChanged(bool value) { OnPropertyChanged(nameof(IsWorking)); OnPropertyChanged(nameof(IsEmpty)); OnPropertyChanged(nameof(CanSort)); OnPropertyChanged(nameof(SelectionText)); NotifyCommands(); }
     partial void OnCurrentViewChanged(string value)
     { foreach (var name in new[] { nameof(IsHome), nameof(IsBrowser), nameof(IsArchive), nameof(IsHistory), nameof(IsSettings), nameof(IsFilePage), nameof(CanRecycleView) }) OnPropertyChanged(name); NotifyCommands(); }
     partial void OnArchiveRootChanged(string value) { OnPropertyChanged(nameof(HasRoot)); OnPropertyChanged(nameof(RootName)); NotifyCommands(); }
     partial void OnArchiveFolderChanged(string value) => NotifyCommands();
     partial void OnTargetFolderChanged(string value) { if (value.Length > 0) _repository.SetSetting("lastTargetFolder", value); OnPropertyChanged(nameof(TargetDisplay)); OnPropertyChanged(nameof(TransferHint)); NotifyCommands(); }
-    partial void OnFileCountChanged(int value) => OnPropertyChanged(nameof(SelectionText));
+    partial void OnFileCountChanged(int value) { OnPropertyChanged(nameof(SelectionText)); OnPropertyChanged(nameof(IsEmpty)); }
     partial void OnFocusedRowChanged(FileRow? value) => NotifyCommands();
-    partial void OnNoticeTextChanged(string value) => OnPropertyChanged(nameof(HasNotice));
+    partial void OnNoticeTextChanged(string value) { OnPropertyChanged(nameof(HasNotice)); OnPropertyChanged(nameof(HeaderDescription)); }
+    partial void OnPageSubtitleChanged(string value) => OnPropertyChanged(nameof(HeaderDescription));
 }

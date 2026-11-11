@@ -1,4 +1,5 @@
 using System.IO;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -96,9 +97,55 @@ internal static class UiRegression
         window.UpdateLayout();
         Check(folderColumn.ActualWidth < 1, "Resizing archive folders must not leave a blank column on other pages.");
         foreach (var view in new[] { "soon", "due", "history", "home" }) await vm.SwitchViewCommand.ExecuteAsync(view);
+        await VerifyResponsiveExpiryLoading(window, repository, archive);
         Check(dialogs.Confirmations == 4, "Every copy/move click must request confirmation exactly once.");
         Check(!App.SmokeFailed, "No unexpected managed errors may occur.");
-        File.WriteAllText(Path.Combine(data, "smoke-success.txt"), "Home persistence, root settings, copy/move confirmation and cancellation, directory copy, folder/file expiry inheritance, minimum-window layout and screenshots passed.");
+        File.WriteAllText(Path.Combine(data, "smoke-success.txt"), "Home persistence, root settings, copy/move confirmation and cancellation, directory copy, folder/file expiry inheritance, minimum-window layout, indexed/scoped expiry loading, immediate cancel/navigation, stale-result rejection and tooltip removal passed.");
+    }
+    private static async Task VerifyResponsiveExpiryLoading(MainWindow window, ArchiveRepository repository, string archive)
+    {
+        var vm = window.ViewModel;
+        repository.RemoveRule(archive, ".", true);
+        vm.ScannerFactory = rules => new ExpiryScanner(rules,
+            (_, _) => throw new InvalidOperationException("No-rule view must not scan any directories."));
+        await vm.SwitchViewCommand.ExecuteAsync("due");
+        var emptyLoad = vm.ExpiryLoadTask;
+        Check(await Task.WhenAny(emptyLoad, Task.Delay(2000)) == emptyLoad, "No-rule expired page must finish immediately.");
+        Check(!vm.IsLoading && vm.Rows.Count == 0, "No-rule results must be empty without a lingering loading flag.");
+        repository.SetRule(archive, ".", true, DateTimeOffset.UtcNow.AddDays(-1));
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        vm.ScannerFactory = rules => new ExpiryScanner(rules, (folder, token) =>
+        {
+            entered.Set();
+            release.Wait(TimeSpan.FromSeconds(15)); // Deliberately emulate a native filesystem call that cannot be interrupted.
+            token.ThrowIfCancellationRequested();
+            return Array.Empty<DirectoryEntry>();
+        });
+        try
+        {
+            await vm.SwitchViewCommand.ExecuteAsync("due");
+            var blocked = vm.ExpiryLoadTask;
+            Check(await Task.Run(() => entered.Wait(3000)), "Blocked filesystem simulation must start.");
+            Check(vm.IsLoading && !vm.IsBusy && vm.SwitchViewCommand.CanExecute("home"), "Read-only scanning must not lock navigation.");
+            Check(!vm.IsEmpty, "Loading must not display a false empty-results message.");
+            await Capture(window, "due-loading-responsive.png", 1360, 860);
+            var navigation = vm.SwitchViewCommand.ExecuteAsync("home");
+            Check(await Task.WhenAny(navigation, Task.Delay(1500)) == navigation, "Leaving a blocked scan must not await the filesystem.");
+            Check(vm.IsHome && !vm.IsLoading, "Leaving the page must immediately clear loading state.");
+            release.Set(); await blocked;
+            await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+            Check(vm.IsHome && vm.Rows.Count == 0, "An old scan must not overwrite the new page.");
+            entered.Reset(); release.Reset();
+            await vm.SwitchViewCommand.ExecuteAsync("due"); blocked = vm.ExpiryLoadTask;
+            Check(await Task.Run(() => entered.Wait(3000)), "Second blocked scan must start.");
+            var cancel = Stopwatch.StartNew(); vm.CancelCommand.Execute(null);
+            Check(!vm.IsLoading && !vm.IsBusy && cancel.ElapsedMilliseconds < 500, "Cancel must return immediately without restarting the scan.");
+            release.Set(); await blocked;
+        }
+        finally { release.Set(); vm.CancelReadLoading(); vm.ScannerFactory = rules => new ExpiryScanner(rules); }
+        await vm.SwitchViewCommand.ExecuteAsync("home");
+        Check(!VisualChildren<FrameworkElement>(window).Any(e => e.ToolTip is not null), "Custom hover tooltips must be absent.");
     }
     private static void Select(MainViewModel vm, string name)
     { foreach (var row in vm.Rows) row.IsSelected = row.Name == name; vm.SelectionChanged(); }

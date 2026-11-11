@@ -11,7 +11,6 @@ namespace ArchiveBox.App;
 public partial class MainWindow : Window
 {
     internal MainViewModel ViewModel => (MainViewModel)DataContext;
-    private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(7) };
     private GridLength? _archivePaneWidth;
     internal SmokeDialogs? TestDialogs { get; }
     public MainWindow()
@@ -20,7 +19,6 @@ public partial class MainWindow : Window
         if (App.IsSmokeTest) TestDialogs = new SmokeDialogs();
         DataContext = new MainViewModel(TestDialogs);
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
-        _noticeTimer.Tick += (_, _) => { _noticeTimer.Stop(); ViewModel.NoticeText = ""; };
         TargetFoldersTree.SizeChanged += FolderTree_SizeChanged;
         ArchiveFoldersTree.SizeChanged += FolderTree_SizeChanged;
         UpdateColumns();
@@ -28,8 +26,6 @@ public partial class MainWindow : Window
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainViewModel.CurrentView)) UpdateColumns();
-        if (e.PropertyName == nameof(MainViewModel.NoticeText))
-        { _noticeTimer.Stop(); if (ViewModel.HasNotice) _noticeTimer.Start(); }
     }
     private void UpdateColumns()
     {
@@ -55,7 +51,7 @@ public partial class MainWindow : Window
     }
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
-        if (App.IsFatalShutdown || !ViewModel.IsBusy) return;
+        if (App.IsFatalShutdown || !ViewModel.IsBusy) { ViewModel.CancelReadLoading(); return; }
         e.Cancel = true;
         MessageBox.Show(this, "文件操作正在进行，请先取消操作并等待结束，再关闭窗口。", "归档盒");
     }

@@ -9,8 +9,18 @@ public sealed record ExpiryDecision(DateTimeOffset? ExpiresAt, bool IsExplicit, 
         "继承：" + (InheritedFrom == "." ? "归档根目录" : System.IO.Path.GetFileName(InheritedFrom));
 }
 
-public sealed class ExpiryRules(IReadOnlyList<ExpiryRule> rules)
+public sealed class ExpiryRules
 {
+    private readonly IReadOnlyList<ExpiryRule> _rules;
+    private readonly Dictionary<string, ExpiryRule> _index = new(StringComparer.OrdinalIgnoreCase);
+    public ExpiryRules(IReadOnlyList<ExpiryRule> rules)
+    {
+        _rules = rules;
+        foreach (var rule in rules) _index[Key(PathSafety.Normalize(rule.Root), rule.RelativePath, rule.IsDirectory)] = rule;
+    }
+    private static string Key(string root, string relative, bool directory) => root + "\0" + relative + (directory ? "\0D" : "\0F");
+    public IReadOnlyList<ExpiryRule> ForRoot(string root) => _rules.Where(r =>
+        string.Equals(r.Root, root, StringComparison.OrdinalIgnoreCase)).ToArray();
     public ExpiryDecision Resolve(string root, string relative, bool directory = false)
     {
         root = PathSafety.Normalize(root);
@@ -27,8 +37,6 @@ public sealed class ExpiryRules(IReadOnlyList<ExpiryRule> rules)
         }
         return new(null, false, null);
     }
-
-    private ExpiryRule? Find(string root, string relative, bool directory) => rules.FirstOrDefault(r =>
-        r.IsDirectory == directory && string.Equals(r.Root, root, StringComparison.OrdinalIgnoreCase) &&
-        string.Equals(r.RelativePath, relative, StringComparison.OrdinalIgnoreCase));
+    private ExpiryRule? Find(string root, string relative, bool directory)
+        => _index.TryGetValue(Key(root, relative, directory), out var rule) ? rule : null;
 }
