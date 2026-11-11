@@ -20,6 +20,8 @@ public partial class MainWindow : Window
         DataContext = new MainViewModel(TestDialogs);
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
         _noticeTimer.Tick += (_, _) => { _noticeTimer.Stop(); ViewModel.NoticeText = ""; };
+        TargetFoldersTree.SizeChanged += FolderTree_SizeChanged;
+        ArchiveFoldersTree.SizeChanged += FolderTree_SizeChanged;
         UpdateColumns();
     }
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -89,7 +91,27 @@ public partial class MainWindow : Window
     private void FolderNode_Selected(object sender, RoutedEventArgs e)
     {
         if (e.OriginalSource is not TreeViewItem item) return;
-        item.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => item.BringIntoView()));
+        item.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => BringHeaderIntoView(item)));
         e.Handled = true;
+    }
+    private static void BringHeaderIntoView(TreeViewItem item)
+    {
+        if (item.Template?.FindName("PART_Header", item) is FrameworkElement header) header.BringIntoView();
+        else item.BringIntoView(new Rect(0, 0, item.ActualWidth, Math.Min(26, item.ActualHeight)));
+    }
+    private void FolderTree_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is not TreeView tree || !tree.IsVisible) return;
+        tree.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => RevealSelected(tree)));
+    }
+    private static bool RevealSelected(ItemsControl parent)
+    {
+        foreach (var model in parent.Items)
+        {
+            if (parent.ItemContainerGenerator.ContainerFromItem(model) is not TreeViewItem item) continue;
+            if (item.IsSelected) { BringHeaderIntoView(item); return true; }
+            if (item.IsExpanded && RevealSelected(item)) return true;
+        }
+        return false;
     }
 }
