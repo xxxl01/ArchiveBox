@@ -290,6 +290,26 @@ public sealed class ArchiveTests : IDisposable
     }
 
     [Fact]
+    public void RecentFolders_ReopenedFolderWinsTimestampTies()
+    {
+        _repository.RememberFolder(Source);
+        for (var i = 0; i < 10; i++) _repository.RememberFolder(Path.Combine(_base, $"folder-{i}"));
+        _repository.RememberFolder(Source);
+        // Simulate a coarse clock: every open receives exactly the same timestamp.
+        using (var connection = new SqliteConnection($"Data Source={Db}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE recent_folders SET opened_at=$time";
+            command.Parameters.AddWithValue("$time", DateTimeOffset.UtcNow.ToString("O"));
+            command.ExecuteNonQuery();
+        }
+        var recent = new ArchiveRepository(Db).GetRecentFolders();
+        Assert.Equal(Source, recent[0].Path);
+        Assert.Equal(11, recent.Count);
+    }
+
+    [Fact]
     public async Task Recovery_VerifiedDestinationNeverDeletesOriginal()
     {
         var source = MakeFile();

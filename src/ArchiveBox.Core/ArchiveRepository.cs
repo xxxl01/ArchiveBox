@@ -70,8 +70,8 @@ public sealed class ArchiveRepository
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            INSERT INTO recent_folders VALUES($path,$time) ON CONFLICT(path) DO UPDATE SET opened_at=excluded.opened_at;
-            DELETE FROM recent_folders WHERE path NOT IN (SELECT path FROM recent_folders ORDER BY opened_at DESC LIMIT 15);
+            INSERT OR REPLACE INTO recent_folders(path,opened_at) VALUES($path,$time);
+            DELETE FROM recent_folders WHERE path NOT IN (SELECT path FROM recent_folders ORDER BY opened_at DESC, rowid DESC LIMIT 15);
             """;
         command.Parameters.AddWithValue("$path", path);
         command.Parameters.AddWithValue("$time", DateTimeOffset.UtcNow.ToString("O"));
@@ -84,7 +84,7 @@ public sealed class ArchiveRepository
     {
         using var connection = Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT path,opened_at FROM recent_folders ORDER BY opened_at DESC";
+        command.CommandText = "SELECT path,opened_at FROM recent_folders ORDER BY opened_at DESC, rowid DESC";
         using var reader = command.ExecuteReader();
         var result = new List<RecentFolder>();
         while (reader.Read()) result.Add(new(reader.GetString(0), Parse(reader.GetString(1))));
