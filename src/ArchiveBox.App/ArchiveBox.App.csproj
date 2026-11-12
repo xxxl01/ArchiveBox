@@ -12,10 +12,13 @@
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
     <AssemblyName>ArchiveBox</AssemblyName>
     <RootNamespace>ArchiveBox.App</RootNamespace>
-    <Version>0.3.1</Version>
+    <Version>0.3.2</Version>
+    <ApplicationIcon>Assets/ArchiveBox.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
+    <Resource Include="Assets/ArchiveBox.png" />
+    <Resource Include="Assets/ArchiveBox.ico" />
     <ProjectReference Include="../ArchiveBox.Core/ArchiveBox.Core.csproj" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />

@@ -1,4 +1,4 @@
-param([string]$Executable = "artifacts/ArchiveBox-v0.3.1-win-x64/ArchiveBox.exe")
+param([string]$Executable = "artifacts/ArchiveBox-v0.3.2-win-x64/ArchiveBox.exe")
 $ErrorActionPreference = "Stop"
 $exe = (Resolve-Path $Executable).Path
 $data = Join-Path $PSScriptRoot "../artifacts/smoke-test"

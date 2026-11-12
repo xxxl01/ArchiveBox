@@ -6,7 +6,7 @@ Windows 本地文件归档工具，基于 **WPF + .NET Framework 4.8 + SQLite**�
 
 **.NET Framework 4.8 是主发行版本，不是可选的兼容版本。应用运行不需要 .NET 10。**
 
-- 当前主包为 `ArchiveBox-v0.3.1-win-x64.zip`，面向 64 位 Windows 11，重点适配 Windows 11 21H2（build 22000）。
+- 当前主包为 `ArchiveBox-v0.3.2-win-x64.zip`，面向 64 位 Windows 11，重点适配 Windows 11 21H2（build 22000）。
 - Windows 11 通常已包含 .NET Framework 4.8 或兼容的原位更新，无需额外安装现代 .NET Desktop Runtime。
 - 解压完整目录后运行 `ArchiveBox.exe`。EXE、`ArchiveBox.exe.config`、DLL 和 SQLite 原生库必须一起保留；请勿与旧版 DLL 混用。
 - 普通用户权限即可运行，同一用户会话同时运行一个实例。
@@ -66,7 +66,7 @@ Windows 本地文件归档工具，基于 **WPF + .NET Framework 4.8 + SQLite**�
 ./scripts/smoke-test.ps1
 ```
 
-输出：`artifacts/ArchiveBox-v0.3.1-win-x64.zip`。程序运行只依赖 Framework 4.8；编译工具不随程序发布。
+输出：`artifacts/ArchiveBox-v0.3.2-win-x64.zip`。程序运行只依赖 Framework 4.8；编译工具不随程序发布。
 
 ```text
 src/ArchiveBox.App/          Framework 4.8 WPF 界面、MVVM、Windows 集成

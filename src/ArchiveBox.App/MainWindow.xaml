@@ -31,7 +31,9 @@
   <Border Background="#EAF0EC" BorderBrush="#DCE5DE" BorderThickness="0,0,1,0">
    <Grid Margin="14,25,14,16"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
     <StackPanel Margin="10,0,0,27"><StackPanel Orientation="Horizontal">
-     <Border Background="#147D64" CornerRadius="9" Width="32" Height="32" Margin="0,0,9,0"><TextBlock Text="▤" Foreground="White" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+     <Image x:Name="BrandIcon" Width="32" Height="32" Margin="0,0,9,0" RenderOptions.BitmapScalingMode="HighQuality">
+      <Image.Source><BitmapImage UriSource="/ArchiveBox;component/Assets/ArchiveBox.png" DecodePixelWidth="64" /></Image.Source>
+     </Image>
      <TextBlock Text="归档盒" FontSize="23" FontWeight="SemiBold" VerticalAlignment="Center" />
     </StackPanel><TextBlock Text="给文件一个好去处" FontSize="11" Foreground="#718177" Margin="0,10,0,0" /></StackPanel>
     <StackPanel Grid.Row="1"><TextBlock Text="工作空间" FontSize="11" Foreground="#7C8C82" Margin="12,0,0,12" />
@@ -46,7 +48,7 @@
 <Button Style="{StaticResource Navigation}" Tag="settings" Command="{Binding SwitchViewCommand}" CommandParameter="settings"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" Margin="0,0,12,0" VerticalAlignment="Center" /><TextBlock Text="设置" /></StackPanel></Button>
     </StackPanel>
     <StackPanel Grid.Row="2" Margin="8,0,0,0"><Button Content="打开本地数据目录" Command="{Binding OpenDataCommand}" FontSize="11" Padding="0,6" HorizontalAlignment="Left" Background="Transparent" BorderThickness="0" Foreground="#708477" />
-     <TextBlock Text="ArchiveBox / v0.3.1" FontSize="11" Foreground="#8A988E" Margin="0,8,0,0" /></StackPanel>
+     <TextBlock Text="ArchiveBox / v0.3.2" FontSize="11" Foreground="#8A988E" Margin="0,8,0,0" /></StackPanel>
    </Grid>
   </Border>
   <Grid Grid.Column="1" Margin="22,22,22,12">

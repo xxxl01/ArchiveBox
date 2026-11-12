@@ -20,7 +20,7 @@ jobs:
         run: ./scripts/smoke-test.ps1
       - name: Check Windows PowerShell diagnostic launcher
         shell: powershell
-        run: ./artifacts/ArchiveBox-v0.3.1-win-x64/Diagnose-ArchiveBox.ps1 -SmokeTest
+        run: ./artifacts/ArchiveBox-v0.3.2-win-x64/Diagnose-ArchiveBox.ps1 -SmokeTest
       - name: Publish release
         shell: pwsh
         env:
